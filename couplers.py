@@ -220,9 +220,6 @@ def two_stage_inverse_taper_with_anchor(
     ))
     return c
 
-
-
-
 # # --- Convenience factory examples ---
 # @gf.cell
 # def inverse_taper_2p5u_to_50nm_default() -> Component:
@@ -256,54 +253,56 @@ def two_stage_inverse_taper_with_anchor(
 #     )
 
 
-inverse_taper_1p5u_to_50nm_default = gf.partial(
-    two_stage_inverse_taper,
-    L1=200,
-    L2=800,
-    L_buf=15,
-    start_width=1.5,
-    mid_width=0.9,
-    tip_width=0.05,
-    dx=0.25,
-    alpha=4.0,
-)
+#TODO : Transfer to skeleton of future techpacks - now to ekn300
+# ------
+# inverse_taper_1p5u_to_50nm_default = gf.partial(
+#     two_stage_inverse_taper,
+#     L1=200,
+#     L2=800,
+#     L_buf=15,
+#     start_width=1.5,
+#     mid_width=0.9,
+#     tip_width=0.05,
+#     dx=0.25,
+#     alpha=4.0,
+# )
 
-inverse_taper_1p5u_to_50nm_def_w_anchor = gf.partial(
-    two_stage_inverse_taper_with_anchor,
-    L1=200,
-    L2=800,
-    L_buf=15,
-    start_width=1.5,
-    mid_width=0.9,
-    tip_width=0.05,
-    dx=0.25,
-    alpha=4.0,
-)
+# inverse_taper_1p5u_to_50nm_def_w_anchor = gf.partial(
+#     two_stage_inverse_taper_with_anchor,
+#     L1=200,
+#     L2=800,
+#     L_buf=15,
+#     start_width=1.5,
+#     mid_width=0.9,
+#     tip_width=0.05,
+#     dx=0.25,
+#     alpha=4.0,
+# )
 
-inverse_taper_1p5u_to_50nm_compact = gf.partial(
-    two_stage_inverse_taper,
-    L1=180,
-    L2=700,
-    L_buf=15,
-    start_width=1.5,
-    mid_width=0.9,
-    tip_width=0.05,
-    dx=0.25,
-    alpha=4.5,
-)
+# inverse_taper_1p5u_to_50nm_compact = gf.partial(
+#     two_stage_inverse_taper,
+#     L1=180,
+#     L2=700,
+#     L_buf=15,
+#     start_width=1.5,
+#     mid_width=0.9,
+#     tip_width=0.05,
+#     dx=0.25,
+#     alpha=4.5,
+# )
 
-inverse_taper_1p5u_to_50nm_compact = gf.partial(
-    two_stage_inverse_taper_with_anchor,
-    L1=180,
-    L2=700,
-    L_buf=15,
-    start_width=1.5,
-    mid_width=0.9,
-    tip_width=0.05,
-    dx=0.25,
-    alpha=4.5,
-)
-
+# inverse_taper_1p5u_to_50nm_compact_with_anchor = gf.partial(
+#     two_stage_inverse_taper_with_anchor,
+#     L1=180,
+#     L2=700,
+#     L_buf=15,
+#     start_width=1.5,
+#     mid_width=0.9,
+#     tip_width=0.05,
+#     dx=0.25,
+#     alpha=4.5,
+# )
+# --------
 
 #ARRAYS 
 @gf.cell
@@ -634,35 +633,36 @@ def edge_coupler_array(
     return c
 
 
+# TESTING ONLY - TODO: Remove unnecessary comments for production
 
-edge_coupler_array_mesa_def = gf.partial(edge_coupler_array,
-        edge_coupler=two_stage_inverse_taper_with_anchor,
-        alignment_coupler=inverse_taper_1p5u_to_50nm_compact,  # or a special one
-        n=32,
-        n_alignment_loops=0,                     # ignored when alignment_pairs is given
-        alignment_pairs={"0": 0, "1": 30},
-        adhesive_keepout_layer="TE",
-        adhesive_keepout_margin=(250, 50),
-        adhesive_keepout_axis="x",
-        axis_reflection=False, 
-        widths=(0.8,1,1.2,1.4))
+# edge_coupler_array_mesa_def = gf.partial(edge_coupler_array,
+#         edge_coupler=two_stage_inverse_taper_with_anchor,
+#         alignment_coupler=inverse_taper_1p5u_to_50nm_compact,  # or a special one
+#         n=32,
+#         n_alignment_loops=0,                     # ignored when alignment_pairs is given
+#         alignment_pairs={"0": 0, "1": 30},
+#         adhesive_keepout_layer="TE",
+#         adhesive_keepout_margin=(250, 50),
+#         adhesive_keepout_axis="x",
+#         axis_reflection=False, 
+#         widths=(0.8,1,1.2,1.4))
 
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
 
-    # c = two_stage_inverse_taper(start_width = 1.2)
-    c = edge_coupler_array_mesa_def()
-    # c = edge_coupler_array(
-    #     edge_coupler=two_stage_inverse_taper_with_anchor,
-    #     alignment_coupler=edge_coupler_silicon_al,  # or a special one
-    #     n=32,
-    #     n_alignment_loops=0,                     # ignored when alignment_pairs is given
-    #     alignment_pairs={"0": 0, "1": 30},
-    #     adhesive_keepout_layer="TE",
-    #     adhesive_keepout_margin=(250, 50),
-    #     adhesive_keepout_axis="x",
-    #     axis_reflection=False)
+#     # c = two_stage_inverse_taper(start_width = 1.2)
+#     c = edge_coupler_array_mesa_def()
+#     # c = edge_coupler_array(
+#     #     edge_coupler=two_stage_inverse_taper_with_anchor,
+#     #     alignment_coupler=edge_coupler_silicon_al,  # or a special one
+#     #     n=32,
+#     #     n_alignment_loops=0,                     # ignored when alignment_pairs is given
+#     #     alignment_pairs={"0": 0, "1": 30},
+#     #     adhesive_keepout_layer="TE",
+#     #     adhesive_keepout_margin=(250, 50),
+#     #     adhesive_keepout_axis="x",
+#     #     axis_reflection=False)
         
-    c.show()
-    print(c.info)
+#     c.show()
+#     print(c.info)
 
