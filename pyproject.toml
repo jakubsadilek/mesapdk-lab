@@ -1,0 +1,13 @@
+[project]
+name = "mesapdk-lab"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "gdsfactory>=9.23.0",
+    "gplugins>=2.0.0",
+    "matplotlib>=3.10.7",
+    "scipy>=1.16.3",
+    "tidy3d>=2.9.3",
+]
