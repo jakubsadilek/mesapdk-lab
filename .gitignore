@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+
+# uv
+.venv/
+.uv/
+uv.lock
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Mac / system
+.DS_Store
