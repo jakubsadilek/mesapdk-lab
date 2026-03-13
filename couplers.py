@@ -115,7 +115,14 @@ def two_stage_inverse_taper(
     pre_taper_spec =  gf.c.taper_cross_section(length=L1, cross_section1=mid_xs, cross_section2=start_xs)
     buffer_spec = gf.c.straight(length=L_buf, cross_section=tip_xs)
 
-    mid_xtrans = gf.path.transition(cross_section1=tip_xs, cross_section2=mid_xs, width_type=gf.partial(_width_exp, alpha = alpha))
+    #mid_xtrans = gf.path.transition(cross_section1=tip_xs, cross_section2=mid_xs, width_type=gf.partial(_width_exp, alpha = alpha))
+    mid_xtrans = gf.path.transition(
+        cross_section1=tip_xs,
+        cross_section2=mid_xs,
+        width_type=gf.partial(_width_exp, alpha=alpha),
+        offset_type=gf.partial(_width_exp, alpha=alpha),
+    )
+    
     mid_sec_st = gf.path.straight(length=L2, npoints = max(int(L2 / dx), 2))
     mid_taper_spec = gf.path.extrude_transition(mid_sec_st, mid_xtrans)
 
@@ -198,7 +205,15 @@ def two_stage_inverse_taper_with_anchor(
     anchor_xs = gf.get_cross_section(xs_waveguide, width=anchor_size[1])
     tip_xs = gf.get_cross_section(xs_waveguide, width=tip_width)
 
-    anchor_xtrans = gf.path.transition(cross_section1=tip_xs, cross_section2=anchor_xs, width_type=gf.partial(_width_exp, alpha = alpha))
+    #anchor_xtrans = gf.path.transition(cross_section1=tip_xs, cross_section2=anchor_xs, width_type='parabolic')
+
+    anchor_xtrans = gf.path.transition(
+        cross_section1=tip_xs,
+        cross_section2=anchor_xs,
+        width_type=gf.partial(_width_exp, alpha=alpha),
+        offset_type=gf.partial(_width_exp, alpha=alpha),
+    )
+
     anchor_trsec_st = gf.path.straight(length=anchor_stub, npoints = max(int(anchor_stub / dx), 2))
     anchor_trsec_spec = gf.path.extrude_transition(anchor_trsec_st, anchor_xtrans)
 
