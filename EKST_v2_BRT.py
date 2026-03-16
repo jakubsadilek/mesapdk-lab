@@ -72,13 +72,14 @@ def ekst_v2_brt_master(
 
     for arr in c.info['fiber_arrays']:
          for loop in arr["fa_alignment_port_names"]:
-            print(arr["fa_alignment_port_names"][loop])
+            al_name = (arr["fa_alignment_port_names"][loop])
 
-            rex1 = 
+            rex0 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[0])
+            rex1 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[1])
             gf.routing.route_single(
                 component=c, 
-                port1= c.ports.filter(regex=r'^E01_AL0_0$')[0],
-                port2= c.ports.filter(regex=r'^E01_AL0_1$')[0],
+                port1= c.ports.filter(regex=rex0)[0],
+                port2= c.ports.filter(regex=rex1)[0],
                 cross_section=cross_section,
                 route_width=2.5,
                 #separation= 127
