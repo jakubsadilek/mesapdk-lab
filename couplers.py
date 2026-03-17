@@ -44,6 +44,7 @@ def _width_exp(t: float, y1: float, y2: float, alpha: float = 3.0) -> float:
 #
 # You can also array multiple tapers or mirror them as needed.
 
+
 @gf.cell_with_module_name
 def two_stage_inverse_taper(
     L1: float = 200.0,          # µm: linear pre‑taper length (start_width -> mid_width)
@@ -157,6 +158,7 @@ def two_stage_inverse_taper(
 
     c.add_port("o1", port=buffer.ports["o1"])       # sacrificial / wafer-test interface
     c.add_port("o2", port=pre_taper.ports["o2"])    # interior waveguide interface
+    c.add_port("ocl", port=buffer.ports["o2"])
 
 
     return c
@@ -225,6 +227,7 @@ def two_stage_inverse_taper_with_anchor(
     anchor.connect('o2', anchor_taper.ports['o2'])
 
     # Promote ports from base; keep o2 at the facet (not at the end of the stub)
+    c.add_port(name="ocl", port=ref.ports["ocl"])
     c.add_port(name="o1", port=ref.ports["o1"])  # start side
     c.add_port(name="o2", port=ref.ports["o2"])  # facet side
 
@@ -268,56 +271,55 @@ def two_stage_inverse_taper_with_anchor(
 #     )
 
 
-#TODO : Transfer to skeleton of future techpacks - now to ekn300
-# ------
-# inverse_taper_1p5u_to_50nm_default = gf.partial(
-#     two_stage_inverse_taper,
-#     L1=200,
-#     L2=800,
-#     L_buf=15,
-#     start_width=1.5,
-#     mid_width=0.9,
-#     tip_width=0.05,
-#     dx=0.25,
-#     alpha=4.0,
-# )
 
-# inverse_taper_1p5u_to_50nm_def_w_anchor = gf.partial(
-#     two_stage_inverse_taper_with_anchor,
-#     L1=200,
-#     L2=800,
-#     L_buf=15,
-#     start_width=1.5,
-#     mid_width=0.9,
-#     tip_width=0.05,
-#     dx=0.25,
-#     alpha=4.0,
-# )
+inverse_taper_1p5u_to_50nm_default = gf.partial(
+    two_stage_inverse_taper,
+    L1=200,
+    L2=800,
+    L_buf=15,
+    start_width=1.5,
+    mid_width=0.9,
+    tip_width=0.05,
+    dx=0.25,
+    alpha=4.0,
+)
 
-# inverse_taper_1p5u_to_50nm_compact = gf.partial(
-#     two_stage_inverse_taper,
-#     L1=180,
-#     L2=700,
-#     L_buf=15,
-#     start_width=1.5,
-#     mid_width=0.9,
-#     tip_width=0.05,
-#     dx=0.25,
-#     alpha=4.5,
-# )
+inverse_taper_1p5u_to_50nm_def_w_anchor = gf.partial(
+    two_stage_inverse_taper_with_anchor,
+    L1=200,
+    L2=800,
+    L_buf=15,
+    start_width=1.5,
+    mid_width=0.9,
+    tip_width=0.05,
+    dx=0.25,
+    alpha=4.0,
+)
 
-# inverse_taper_1p5u_to_50nm_compact_with_anchor = gf.partial(
-#     two_stage_inverse_taper_with_anchor,
-#     L1=180,
-#     L2=700,
-#     L_buf=15,
-#     start_width=1.5,
-#     mid_width=0.9,
-#     tip_width=0.05,
-#     dx=0.25,
-#     alpha=4.5,
-# )
-# --------
+inverse_taper_1p5u_to_50nm_compact = gf.partial(
+    two_stage_inverse_taper,
+    L1=180,
+    L2=700,
+    L_buf=15,
+    start_width=1.5,
+    mid_width=0.9,
+    tip_width=0.05,
+    dx=0.25,
+    alpha=4.5,
+)
+
+inverse_taper_1p5u_to_50nm_compact_with_anchor = gf.partial(
+    two_stage_inverse_taper_with_anchor,
+    L1=180,
+    L2=700,
+    L_buf=15,
+    start_width=1.5,
+    mid_width=0.9,
+    tip_width=0.05,
+    dx=0.25,
+    alpha=4.5,
+)
+
 
 #ARRAYS 
 @gf.cell
@@ -448,22 +450,14 @@ def edge_coupler_array(
         ref = c.add_ref(ec)
         ref.name = f"ec_{i}"
 
-        pos = start + i * pitch
-        if along_y:
-            ref.dy = pos
-        else:
-            ref.dx = pos
-
-        # --- reflection first, then rotation ---
+                # orient locally first
         if refl:
             if along_y:
-                # vertical array → mirror across Y-axis (flip x)
                 if hasattr(ref, "dmirror"):
                     ref.dmirror()
                 else:
                     ref.mirror()
             else:
-                # horizontal array → mirror across X-axis (flip y)
                 if hasattr(ref, "drotate") and hasattr(ref, "dmirror"):
                     ref.drotate(90)
                     ref.dmirror()
@@ -479,6 +473,33 @@ def edge_coupler_array(
             else:
                 ref.rotate(rotation)
 
+        # target coordinate of the FACET port
+        pos = start + i * pitch
+        target = (0.0, pos) if along_y else (pos, 0.0)
+
+        ports_obj = ref.ports
+        #print(ref.ports)
+
+        # which port is physically on the facet side after transform?
+        for candidate in ("ocl", "o1", "o2"):
+                        try:
+                            if candidate in ports_obj:
+                                facet_port_name = candidate
+                                break
+                        except TypeError:
+                            # ports_obj may not support "in"
+                            pass
+
+        #facet_port_name = "o1" if refl else "o1"
+
+        p = ref.ports[facet_port_name].center
+
+        if hasattr(ref, "dmove"):
+            ref.dmove(origin=p, destination=target)
+        else:
+            dx = target[0] - p[0]
+            dy = target[1] - p[1]
+            ref.move((dx, dy))
 
         coupler_refs.append(ref)
 
@@ -487,7 +508,7 @@ def edge_coupler_array(
             # special naming for alignment loop ports: ALk_0, ALk_1
             loop_index, side_index = loop_side  # side_index in {0,1}
 
-            ports_obj = ref.ports
+            
 
             # Choose a "primary" optical port: prefer o1 → o2 → first available.
             primary = None
@@ -648,36 +669,37 @@ def edge_coupler_array(
     return c
 
 
-# TESTING ONLY - TODO: Remove unnecessary comments for production
+#TESTING ONLY - TODO: Remove unnecessary comments for production
+gf.gpdk.PDK.activate()
 
-# edge_coupler_array_mesa_def = gf.partial(edge_coupler_array,
-#         edge_coupler=two_stage_inverse_taper_with_anchor,
-#         alignment_coupler=inverse_taper_1p5u_to_50nm_compact,  # or a special one
-#         n=32,
-#         n_alignment_loops=0,                     # ignored when alignment_pairs is given
-#         alignment_pairs={"0": 0, "1": 30},
-#         adhesive_keepout_layer="TE",
-#         adhesive_keepout_margin=(250, 50),
-#         adhesive_keepout_axis="x",
-#         axis_reflection=False, 
-#         widths=(0.8,1,1.2,1.4))
+edge_coupler_array_mesa_def = gf.partial(edge_coupler_array,
+        edge_coupler=two_stage_inverse_taper_with_anchor(cleave_marker_layer=(10,0)),
+        alignment_coupler=inverse_taper_1p5u_to_50nm_compact,  # or a special one
+        n=32,
+        n_alignment_loops=0,                     # ignored when alignment_pairs is given
+        alignment_pairs={"0": 0, "1": 30},
+        adhesive_keepout_layer="TE",
+        adhesive_keepout_margin=(250, 50),
+        adhesive_keepout_axis="x",
+        axis_reflection=True, 
+        widths=(0.8,1,1.2,1.4))
 
 
-# if __name__ == "__main__":
+if __name__ == "__main__":
 
-#     # c = two_stage_inverse_taper(start_width = 1.2)
-#     c = edge_coupler_array_mesa_def()
-#     # c = edge_coupler_array(
-#     #     edge_coupler=two_stage_inverse_taper_with_anchor,
-#     #     alignment_coupler=edge_coupler_silicon_al,  # or a special one
-#     #     n=32,
-#     #     n_alignment_loops=0,                     # ignored when alignment_pairs is given
-#     #     alignment_pairs={"0": 0, "1": 30},
-#     #     adhesive_keepout_layer="TE",
-#     #     adhesive_keepout_margin=(250, 50),
-#     #     adhesive_keepout_axis="x",
-#     #     axis_reflection=False)
+    # c = two_stage_inverse_taper(start_width = 1.2)
+    c = edge_coupler_array_mesa_def()
+    # c = edge_coupler_array(
+    #     edge_coupler=two_stage_inverse_taper_with_anchor,
+    #     alignment_coupler=edge_coupler_silicon_al,  # or a special one
+    #     n=32,
+    #     n_alignment_loops=0,                     # ignored when alignment_pairs is given
+    #     alignment_pairs={"0": 0, "1": 30},
+    #     adhesive_keepout_layer="TE",
+    #     adhesive_keepout_margin=(250, 50),
+    #     adhesive_keepout_axis="x",
+    #     axis_reflection=False)
         
-#     c.show()
-#     print(c.info)
+    c.show()
+    print(c.info)
 

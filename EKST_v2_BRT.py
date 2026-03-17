@@ -62,8 +62,8 @@ def ekst_v2_brt_master(
             print(bend_rads[i], widths[x], route.length)
 
             if label_txt != None:
-                txt = c.add_ref(label_txt(text="    W{:.2f}um L{:.3f}mm".format(route.start_port.dwidth, route.length/1e6)))       #in mm
-                txt.dmove(origin=(0,0), destination=(route.start_port.trans.disp.x/1000 + lbl_offset[0], route.start_port.trans.disp.y/1000 + lbl_offset[1]))
+                txt = c.add_ref(label_txt(text="W{:.2f}um L{:.3f}mm".format(route.start_port.dwidth, route.length/1e6)))       #in mm
+                txt.dmove(origin=(0,0), destination=(route.start_port.trans.disp.x/1000 + lbl_offset[0] - 850, route.start_port.trans.disp.y/1000 + lbl_offset[1]))
 
             routes.append(route)
 
