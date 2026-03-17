@@ -37,6 +37,7 @@ def ekst_v2_brt_master(
     ports1=c.ports.filter(regex=r'^W01_(?!AL)\d+o2$')
     ports2=c.ports.filter(regex=r'^E01_(?!AL)\d+o2$')
 
+
     ekn_bend=gf.partial(gf.c.bend_euler, cross_section=xs_ekn300_te_IMGREV)
 
     routes = []
@@ -58,55 +59,32 @@ def ekst_v2_brt_master(
                 )
             )
 
-    print (c.ports.filter(regex=r'^E01_AL0_0$'))
-    print (c.ports.filter(regex=r'^E01_AL0_1$'))
-    
-
-    faa = c.info['fiber_arrays']
-
-    print(c.info)
-
-    for fa in faa:
-         print(fa['fa_alignment_port_names'], fa['side'], fa['array_index'])
-
-
+#TODO: This is plain hack ... if there would be odd number of al. loops it would fall apart
     for arr in c.info['fiber_arrays']:
          for loop in arr["fa_alignment_port_names"]:
             al_name = (arr["fa_alignment_port_names"][loop])
 
-            rex0 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[0])
-            rex1 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[1])
+            if int(loop) % 2 > 0:
+                rex1 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[0])
+                rex0 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[1])
+            else:
+                rex0 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[0])
+                rex1 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[1])
             gf.routing.route_single(
                 component=c, 
                 port1= c.ports.filter(regex=rex0)[0],
                 port2= c.ports.filter(regex=rex1)[0],
                 cross_section=cross_section,
-                route_width=2.5,
+                route_width=c.ports.filter(regex=rex0)[0].width,
                 #separation= 127
                                         )
 
-    # al0 = gf.routing.route_single(
-    #      component=c, 
-    #      port1= c.ports.filter(regex=r'^E01_AL0_0$')[0],
-    #      port2= c.ports.filter(regex=r'^E01_AL0_1$')[0],
-    #      cross_section=cross_section,
-    #      route_width=2.5,
-    #      #separation= 127
-    #                               )
-    # al1 = gf.routing.route_single(
-    #         component=c, 
-    #         port2= c.ports.filter(regex=r'^E01_AL1_0$')[0],
-    #         port1= c.ports.filter(regex=r'^E01_AL1_1$')[0],
-    #         cross_section=cross_section,
-    #         route_width=2.5,
-    #         #separation= 127,start_straight_length= 200,
-    #                                 )
 
+    #print(routes[0].length)
+    # print(al)length
 
-    # al = gf.port.select_ports(ports = c.ports, prefix="E01_AL" )
+    print(c.info['fiber_arrays'])
 
-    
-    # print(al)
     return c
 
 
