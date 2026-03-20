@@ -13,6 +13,7 @@ def spiral_symmetric(
     spacing: float = 3.0,
     n_loops: int = 6,
     opposite_ends: bool = True,
+    centered: bool = True
 ) -> gf.Component:
     """Symmetric in/out spiral.
 
@@ -29,6 +30,8 @@ def spiral_symmetric(
             expansions; must be >= 2 for anything useful).
         opposite_ends: If True, route one arm one extra "half-loop" so
             the two ports end on opposite sides of the spiral.
+        centered: If True, then the component center would be adjusted to the 
+        initial bend crossing (middle of the spiral)
     """
     if n_loops < 0:
         raise ValueError("n_loops must be >= 0 for a meaningful spiral.")
@@ -196,12 +199,23 @@ def spiral_symmetric(
     # -------------------------------------------------------------------------
     c.add_port("o1", port = p1)
     c.add_port("o2", port = p2)
+
     c.info["length"] = lin_length
+
+    # -------------------------------------------------------------------------
+    # overal possition
+    # -------------------------------------------------------------------------  
+
+    if centered:
+        location = b_inners[1].ports["o1"].center
+        c.dmove(origin=location, destination=(0,0))
+    #c.
 
     return c
 
 
 if __name__ == "__main__":
-    c = spiral_symmetric(cross_section="rib", length=10000, spacing=20.0, n_loops=25, bend=gf.partial(gf.c.bend_euler,radius=500))
+    gf.gpdk.PDK.activate()
+    c = spiral_symmetric(cross_section="rib", length=10000, spacing=20.0, n_loops=25, bend=gf.partial(gf.c.bend_euler,radius=500), opposite_ends=False, centered=True)
     print(c.info["length"])
     c.show()

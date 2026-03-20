@@ -6,6 +6,7 @@ from test_crosssections import xs_ekn300_te_IMGREV
 import matplotlib.pyplot as plt
 import numpy as np
 
+gf.CONF.layer_marker=(26,0)
 label_txt = gf.partial(gf.components.text_rectangular, layer = "GE")
 
 def ekst_v2_pul_master(
@@ -29,28 +30,78 @@ def ekst_v2_pul_master(
     )
     c.locked = False
 
-    spirals = {}
 
+    
+    # -------------------------------------------------------------------------
+    # Generate spirals
+    # -------------------------------------------------------------------------
+
+    spirals = []
     for length in lengths:
-        spirals[str(length)] = c.add_ref(spiral_symmetric(length=length,
+        #spirals[str(length)] = spiral_symmetric(length=length,
+        spirals.append(spiral_symmetric(length=length,
                                    bend=gf.components.bend_euler(radius=bend_rad, cross_section=xs_ekn300_te_IMGREV),
                                    cross_section=xs_ekn300_te_IMGREV, 
                                    n_loops=6,
                                    spacing=50,
-                                   opposite_ends=False)).mirror_x()
+                                   opposite_ends=False))
 
-    spirals["12000"].dmovey(5000)
+
+    
+    # -------------------------------------------------------------------------
+    # Pack gen. spirals tigtly and hack-in offsets for ports
+    # -------------------------------------------------------------------------
+
+    #TODO: Hack the gf.pack so it would be able to shift these components and
+    # make routing  spaces automatically 
+
+    a = gf.pack(component_list=spirals,
+            spacing=bend_rad)
+    
+    a[0].insts[1].dmovey(-bend_rad/2)
+    a[0].ports[2].dy -= bend_rad/2
+    a[0].ports[3].dy -= bend_rad/2
+
+    a[0].insts[2].dmovey(-bend_rad/2)
+    a[0].ports[4].dy -= bend_rad/2
+    a[0].ports[5].dy -= bend_rad/2
+   
+    aa = c.add_ref(a[0]).dmirror_x().dmirror_y()
+
+    aa.dmove(origin=aa.center, destination=(0,0))
+
+    edge = float(c.info["die_frame"]['die_polished_bbox'][2])
+    aa.dmovex(origin=aa.bbox().right, destination=edge - bend_rad)
+
+    ports=c.ports.filter(regex=r'^W01_(?!AL)\d+o2$')[::-1]#[len(aa.ports):]
+    ports2 = ports[len(ports)-len(aa.ports):]
+    ekn_bend=gf.partial(gf.c.bend_euler, cross_section=xs_ekn300_te_IMGREV)
+
+    routes = gf.routing.route_bundle(
+        component=c,
+        ports1=aa.ports,
+        ports2=ports2,
+        cross_section=xs_ekn300_te_IMGREV,
+        bend=ekn_bend, 
+        separation=127,
+        sort_ports=True, show_waypoints=True,
+        layer_marker=(25,0),
+        radius=600
+
+)
+
 
     lens = []
 
     for item in spirals:
-        lens.append(spirals[item].cell.info["length"])
+        lens.append(item.info["length"])
 
 
     plt.scatter(x=np.arange(len(lens)), y=lens)
 
     plt.show()   
 
+    print(c.info)
 
     return c
 
