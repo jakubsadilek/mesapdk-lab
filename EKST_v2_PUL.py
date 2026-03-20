@@ -116,7 +116,7 @@ def ekst_v2_pul_master(
     # Add the Chip name tag
     # -------------------------------------------------------------------------
 
-    tag = c.add_ref(label_txt(size=250, text="BRT")).drotate(90).dmove(origin=(0,0), destination=(-8250, 500))
+    tag = c.add_ref(label_txt(size=100, text="EKST_v2\nPUL")).drotate(90).dmove(origin=(0,0), destination=(-9250, 600))
 
     return c
 

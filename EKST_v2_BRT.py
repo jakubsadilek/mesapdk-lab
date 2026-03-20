@@ -86,7 +86,11 @@ def ekst_v2_brt_master(
                 route_width=c.ports.filter(regex=rex0)[0].width,
                 #separation= 127
                                         )
+    # -------------------------------------------------------------------------
+    # Add the Chip name tag
+    # -------------------------------------------------------------------------
 
+    tag = c.add_ref(label_txt(size=100, text="EKST_v2\nBRT")).drotate(90).dmove(origin=(0,0), destination=(-9250, 600))
     return c
 
 
