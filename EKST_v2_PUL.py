@@ -111,6 +111,13 @@ def ekst_v2_pul_master(
                 #separation= 127
                                         )
 
+
+    # -------------------------------------------------------------------------
+    # Add the Chip name tag
+    # -------------------------------------------------------------------------
+
+    tag = c.add_ref(label_txt(size=250, text="BRT")).drotate(90).dmove(origin=(0,0), destination=(-8250, 500))
+
     return c
 
     lens = []
