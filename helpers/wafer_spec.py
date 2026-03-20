@@ -32,6 +32,9 @@ def make_semi_wafer_spec(
     edge_exclusion_um: float = 3_000.0,
     secondary_flat_angle_deg: float = 90.0,
     notch_radius_um: float = 1_500.0,
+    use_primary_flat: bool = True,
+    use_secondary_flat: bool = True,
+    use_notch: bool = True,
 ) -> WaferSpec:
     """Create a normalized wafer spec from SEMI-style shorthand."""
 
@@ -59,21 +62,52 @@ def make_semi_wafer_spec(
             primary_flat_um=None,
             secondary_flat_um=None,
             secondary_flat_angle_deg=None,
-            notch_radius_um=notch_radius_um,
-            notch_center_from_origin_um=(0.0, -(dia_um / 2.0 + 1000.0)),
+            notch_radius_um=notch_radius_um if use_notch else None,
+            notch_center_from_origin_um=(
+                (0.0, -(dia_um / 2.0 + 1000.0)) if use_notch else None
+            ),
         )
+
+    primary_flat_um = float(main_feature) * 1000.0 if use_primary_flat else None
+    secondary_flat_um = (
+        float(secondary_flat_mm) * 1000.0
+        if (secondary_flat_mm is not None and use_secondary_flat)
+        else None
+    )
+    secondary_angle = secondary_flat_angle_deg if secondary_flat_um is not None else None
 
     return WaferSpec(
         name=diameter,
         diameter_um=dia_um,
         edge_exclusion_um=edge_exclusion_um,
-        primary_flat_um=float(main_feature) * 1000.0,
-        secondary_flat_um=float(secondary_flat_mm) * 1000.0 if secondary_flat_mm is not None else None,
-        secondary_flat_angle_deg=secondary_flat_angle_deg,
+        primary_flat_um=primary_flat_um,
+        secondary_flat_um=secondary_flat_um,
+        secondary_flat_angle_deg=secondary_angle,
         notch_radius_um=None,
         notch_center_from_origin_um=None,
     )
 
+def make_custom_wafer_spec(
+    *,
+    name: str,
+    diameter_um: float,
+    edge_exclusion_um: float = 3_000.0,
+    primary_flat_um: float | None = None,
+    secondary_flat_um: float | None = None,
+    secondary_flat_angle_deg: float | None = None,
+    notch_radius_um: float | None = None,
+    notch_center_from_origin_um: tuple[float, float] | None = None,
+) -> WaferSpec:
+    return WaferSpec(
+        name=name,
+        diameter_um=diameter_um,
+        edge_exclusion_um=edge_exclusion_um,
+        primary_flat_um=primary_flat_um,
+        secondary_flat_um=secondary_flat_um,
+        secondary_flat_angle_deg=secondary_flat_angle_deg,
+        notch_radius_um=notch_radius_um,
+        notch_center_from_origin_um=notch_center_from_origin_um,
+    )
 
 def _point_in_circle(x: float, y: float, radius: float) -> bool:
     return x * x + y * y <= radius * radius
