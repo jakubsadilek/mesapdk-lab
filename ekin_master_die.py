@@ -116,7 +116,7 @@ ekn_master_die_ds = gf.partial(die_frame_mesa,
     npads=20,
     pad_pitch=750.0,
     electrical_sides=("N", "S"),
-    xoffset_dc_pads=(-250.0, -250.0),
+    xoffset_dc_pads=(-250.0, -400.0),
     center_pads=True,
  
     fiber_arrays_by_side={
@@ -144,7 +144,7 @@ ekn_master_die_ss = gf.partial(die_frame_mesa,
     npads=20,
     pad_pitch=750.0,
     electrical_sides=("N", "S"),
-    xoffset_dc_pads=(-250.0, -250.0),
+    xoffset_dc_pads=(-250.0, -400.0),
     center_pads=True,
  
     fiber_arrays_by_side={

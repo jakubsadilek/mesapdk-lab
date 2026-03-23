@@ -21,31 +21,35 @@ def ekst_v2_brt_master(
 
         
 ) -> gf.Component:
+    
+    d = gf.Component()
 
     eca_w1 = ec_array_def(widths = widths)
     eca_e1 = ec_array_def(widths = widths, axis_reflection = True)
 
-    c = master_die(
+    md = d.add_ref(master_die(
         fiber_arrays_by_side={
         "W": [eca_w1],
         "E": [eca_e1],
         }
-    )
-    c.locked = False
+    ))
+    #c.locked = False
 
         
-    ec_available = len(c.info["fiber_arrays"][0]["fa_usable_channel_indices"])
+    ec_available = len(md.cell.info["fiber_arrays"][0]["fa_usable_channel_indices"])
     req_connections = len(widths)*len(bend_rads)
-    ec_pitch = c.info["fiber_arrays"][0]["fa_pitch"]
+    ec_pitch = md.cell.info["fiber_arrays"][0]["fa_pitch"]
 
     if req_connections > ec_available:
             raise ValueError(
                 f"Requested number of channels {req_connections} exceeds number of available {ec_available} ports "
             )
 
-    ports1=c.ports.filter(regex=r'^W01_(?!AL)\d+o2$')
-    ports2=c.ports.filter(regex=r'^E01_(?!AL)\d+o2$')
+    ports1=md.ports.filter(regex=r'^W01_(?!AL)\d+o2$')
+    ports2=md.ports.filter(regex=r'^E01_(?!AL)\d+o2$')
 
+    print(ports1)
+    
 
     ekn_bend=gf.partial(gf.c.bend_euler, cross_section=xs_ekn300_te_IMGREV)
 
@@ -62,7 +66,7 @@ def ekst_v2_brt_master(
         for x in range(0, len(widths)):
             offset = int(start_offset - (i*len(widths)+x)*(ec_pitch)-ext_grp_spacing*i)
             route = gf.routing.route_single(
-                    component=c,
+                    component=d,
                     cross_section=cross_section,
                     port1=ports1[i*len(widths)+x],
                     port2=ports2[i*len(widths)+x],
@@ -71,16 +75,16 @@ def ekst_v2_brt_master(
                     bend=ekn_bend(radius=bend_rads[i])
                 )
             
-            print(bend_rads[i], widths[x], route.length)
+            #print(bend_rads[i], widths[x], route.length)
 
             if label_txt != None:
-                txt = c.add_ref(label_txt(text="W{:.2f}um L{:.3f}mm".format(route.start_port.dwidth, route.length/1e6)))       #in mm
+                txt = d.add_ref(label_txt(text="W{:.2f}um L{:.3f}mm".format(route.start_port.dwidth, route.length/1e6)))       #in mm
                 txt.dmove(origin=(0,0), destination=(route.start_port.trans.disp.x/1000 + lbl_offset[0] - 850, route.start_port.trans.disp.y/1000 + lbl_offset[1]))
 
             routes.append(route)
 
 #TODO: This is plain hack ... if there would be odd number of al. loops it would fall apart
-    for arr in c.info['fiber_arrays']:
+    for arr in md.cell.info['fiber_arrays']:
          for loop in arr["fa_alignment_port_names"]:
             al_name = (arr["fa_alignment_port_names"][loop])
 
@@ -91,11 +95,11 @@ def ekst_v2_brt_master(
                 rex0 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[0])
                 rex1 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[1])
             gf.routing.route_single(
-                component=c, 
-                port1= c.ports.filter(regex=rex0)[0],
-                port2= c.ports.filter(regex=rex1)[0],
+                component=d, 
+                port1= md.cell.ports.filter(regex=rex0)[0],
+                port2= md.cell.ports.filter(regex=rex1)[0],
                 cross_section=cross_section,
-                route_width=c.ports.filter(regex=rex0)[0].width,
+                route_width=md.cell.ports.filter(regex=rex0)[0].width,
                 #separation= 127
                                         )
     # -------------------------------------------------------------------------
@@ -103,11 +107,15 @@ def ekst_v2_brt_master(
     # -------------------------------------------------------------------------
 
     if label != None:
-        tag = c.add_ref(label_txt(size=100, text=label)).drotate(90).dmove(origin=(0,0), destination=(-9250, 600))
+        tag = d.add_ref(label_txt(size=100, text=label)).drotate(90).dmove(origin=(0,0), destination=(-9250, 600))
     if chip_id_label != None:
-        chip_id_tag = c.add_ref(label_txt(size=30, text=chip_id_label, justify = "center")).dmove(origin=(0,0), destination=(8550, -4350))
+        chip_id_tag = d.add_ref(label_txt(size=30, text=chip_id_label, justify = "center")).dmove(origin=(0,0), destination=(8550, -4350))
 
-    return c
+
+    d.info = md.cell.info
+    
+    return d
+
 
 
 if __name__ == "__main__":

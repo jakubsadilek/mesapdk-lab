@@ -22,15 +22,17 @@ def ekst_v2_pul_master(
         
 ) -> gf.Component:
 
+    d = gf.Component()
+
     eca_w1 = ec_array_def(widths = width)
     eca_e1 = ec_array_def(widths = width, axis_reflection = True)
 
-    c = master_die(
+    md = d.add_ref(master_die(
         fiber_arrays_by_side={
         "W": [eca_w1],
         }
-    )
-    c.locked = False
+    ))
+    
 
 
     
@@ -68,19 +70,19 @@ def ekst_v2_pul_master(
     a[0].ports[4].dy -= bend_rad/2
     a[0].ports[5].dy -= bend_rad/2
    
-    aa = c.add_ref(a[0]).dmirror_x().dmirror_y()
+    aa = d.add_ref(a[0]).dmirror_x().dmirror_y()
 
     aa.dmove(origin=aa.center, destination=(0,0))
 
-    edge = float(c.info["die_frame"]['die_polished_bbox'][2])
+    edge = float(md.cell.info["die_frame"]['die_polished_bbox'][2])
     aa.dmovex(origin=aa.bbox().right, destination=edge - bend_rad)
 
-    ports=c.ports.filter(regex=r'^W01_(?!AL)\d+o2$')[::-1]#[len(aa.ports):]
+    ports=md.ports.filter(regex=r'^W01_(?!AL)\d+o2$')[::-1]#[len(aa.ports):]
     ports2 = ports[len(ports)-len(aa.ports):]
     ekn_bend=gf.partial(gf.c.bend_euler, cross_section=xs_ekn300_te_IMGREV)
 
     routes = gf.routing.route_bundle(
-        component=c,
+        component=d,
         ports1=aa.ports,
         ports2=ports2,
         cross_section=xs_ekn300_te_IMGREV,
@@ -94,7 +96,7 @@ def ekst_v2_pul_master(
 
 
 #TODO: This is plain hack ... if there would be odd number of al. loops it would fall apart
-    for arr in c.info['fiber_arrays']:
+    for arr in md.cell.info['fiber_arrays']:
          for loop in arr["fa_alignment_port_names"]:
             al_name = (arr["fa_alignment_port_names"][loop])
             print(al_name)
@@ -106,11 +108,11 @@ def ekst_v2_pul_master(
                 rex0 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[0])
                 rex1 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[1])
             gf.routing.route_single(
-                component=c, 
-                port1= c.ports.filter(regex=rex0)[0],
-                port2= c.ports.filter(regex=rex1)[0],
+                component=d, 
+                port1= md.ports.filter(regex=rex0)[0],
+                port2= md.ports.filter(regex=rex1)[0],
                 cross_section=cross_section,
-                route_width=c.ports.filter(regex=rex0)[0].width,
+                route_width=md.ports.filter(regex=rex0)[0].width,
                 #separation= 127
                                         )
 
@@ -120,11 +122,15 @@ def ekst_v2_pul_master(
     # -------------------------------------------------------------------------
 
     if label != None:
-        tag = c.add_ref(label_txt(size=100, text=label)).drotate(90).dmove(origin=(0,0), destination=(-9250, 600))
+        tag = d.add_ref(label_txt(size=100, text=label)).drotate(90).dmove(origin=(0,0), destination=(-9250, 600))
     if chip_id_label != None:
-        chip_id_tag = c.add_ref(label_txt(size=30, text=chip_id_label, justify = "center")).dmove(origin=(0,0), destination=(8550, -4350))
+        chip_id_tag = d.add_ref(label_txt(size=30, text=chip_id_label, justify = "center")).dmove(origin=(0,0), destination=(8550, -4350))
 
-    return c
+    print(md.cell.info)
+    d.info = md.cell.info
+    print(d.info)
+
+    return d
 
     lens = []
 
@@ -142,4 +148,4 @@ def ekst_v2_pul_master(
 
 
 if __name__ == "__main__":
-    ekst_v2_pul_master(width = 1.25).show()
+    ekst_v2_pul_master(width = (1.25,)).show()
