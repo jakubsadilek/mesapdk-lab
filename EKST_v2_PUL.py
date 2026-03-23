@@ -1,6 +1,6 @@
 import gdsfactory as gf
 
-from ekin_master_die import ekn_master_die_ss, edge_coupler_array_ekn_def
+from ekin_master_die import ekn_master_die_ss, edge_coupler_array_ekn_def, edge_coupler_array_ekn_def_3loops
 from spirals import spiral_symmetric
 from test_crosssections import xs_ekn300_te_IMGREV
 import matplotlib.pyplot as plt
@@ -15,8 +15,10 @@ def ekst_v2_pul_master(
         width: tuple = (0.75,),
         bend_rad: float = 600,
         cross_section:gf.typings.CrossSectionSpec = xs_ekn300_te_IMGREV,
-        ec_array_def: gf.typings.ComponentSpec = edge_coupler_array_ekn_def,
-        label_txt: gf.typings.ComponentSpec = label_txt
+        ec_array_def: gf.typings.ComponentSpec = edge_coupler_array_ekn_def_3loops,
+        label_txt: gf.typings.ComponentSpec = label_txt,
+        label: str = "EKST_v2\nPUL",
+        chip_id_label: str = "EKST_v2 PUL\nW00_I00\nX20.0 Y20.0",
         
 ) -> gf.Component:
 
@@ -95,6 +97,7 @@ def ekst_v2_pul_master(
     for arr in c.info['fiber_arrays']:
          for loop in arr["fa_alignment_port_names"]:
             al_name = (arr["fa_alignment_port_names"][loop])
+            print(al_name)
 
             if int(loop) % 2 > 0:
                 rex1 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[0])
@@ -116,7 +119,10 @@ def ekst_v2_pul_master(
     # Add the Chip name tag
     # -------------------------------------------------------------------------
 
-    tag = c.add_ref(label_txt(size=100, text="EKST_v2\nPUL")).drotate(90).dmove(origin=(0,0), destination=(-9250, 600))
+    if label != None:
+        tag = c.add_ref(label_txt(size=100, text=label)).drotate(90).dmove(origin=(0,0), destination=(-9250, 600))
+    if chip_id_label != None:
+        chip_id_tag = c.add_ref(label_txt(size=30, text=chip_id_label, justify = "center")).dmove(origin=(0,0), destination=(8550, -4350))
 
     return c
 
@@ -136,4 +142,4 @@ def ekst_v2_pul_master(
 
 
 if __name__ == "__main__":
-    ekst_v2_pul_master().show()
+    ekst_v2_pul_master(width = 1.25).show()

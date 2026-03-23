@@ -45,6 +45,8 @@ def _width_exp(t: float, y1: float, y2: float, alpha: float = 3.0) -> float:
 # You can also array multiple tapers or mirror them as needed.
 
 
+
+
 @gf.cell_with_module_name
 def two_stage_inverse_taper(
     L1: float = 200.0,          # µm: linear pre‑taper length (start_width -> mid_width)
@@ -92,8 +94,8 @@ def two_stage_inverse_taper(
         raise ValueError("All widths must be positive.")
     if not (L1 >= 1 and L2 >= 1 and L_buf >= 0):
         raise ValueError("Lengths must be >= 1 µm (buffer can be 0).")
-    if not (start_width > mid_width > tip_width):
-        raise ValueError("Require start_width > mid_width > tip_width.")
+    # if not (start_width > mid_width > tip_width):
+    #     raise ValueError("Require start_width > mid_width > tip_width.")
     
     if start_width is None and width is not None:
         start_width = width
@@ -238,6 +240,74 @@ def two_stage_inverse_taper_with_anchor(
     ))
     return c
 
+
+@gf.cell_with_module_name
+def butt_ec_with_anchor(
+    L1: float = 1000,
+    L_buf: float = 15.0,
+    width: float | None = None,
+    layer: LayerSpec = (1, 0),
+    add_anchor: bool = True,
+    dx: float = 0.25,           # µm: sampling pitch along z; 0.25–0.5 is reasonable
+    alpha: float = 4.0,         # shape parameter for the slow taper (higher = gentler near tip),
+    anchor_stub: float = 25.0,         # µm: expanding tether beyond the *buffer* (expected cleave line)
+    anchor_size: Size = (6.0, 10.0),  # (width, height) of anchor pad, µm
+    # Optional cleave marker layer (draw a hairline to visualize facet position)
+    cleave_marker_layer: LayerSpec | None = None,
+    xs_waveguide : CrossSectionSpec | None = 'strip'
+) -> Component:
+    """TButt coupler with a small cleave‑side anchor pad.
+
+    Geometry layout:
+      [ straight L1 ] -> [ straight buffer L_buf ] -> (FACET / cleave line) -> [ narrow stub ] -> [ anchor pad ]
+
+    * Port 'o1' stays at the FACET (end of L_buf), so the extra stub + anchor are
+      outside the intended die and get removed by dicing / cleaving. They mainly
+      improve resist adhesion and handling during litho.
+    """
+    # Build the base taper up to (and including) the buffer; keep facet position
+    base = gf.components.straight(length=L1, cross_section=xs_waveguide, width=width)
+    buf = gf.components.straight(length=L_buf, cross_section=xs_waveguide, width=width)
+    c = gf.Component()
+    ref = c << base
+    ref2 = c << buf
+
+    
+    anchor_xs = gf.get_cross_section(xs_waveguide, width=anchor_size[1])
+    tip_xs = gf.get_cross_section(xs_waveguide, width=width)
+
+    #anchor_xtrans = gf.path.transition(cross_section1=tip_xs, cross_section2=anchor_xs, width_type='parabolic')
+
+    anchor_xtrans = gf.path.transition(
+        cross_section1=tip_xs,
+        cross_section2=anchor_xs,
+        width_type=gf.partial(_width_exp, alpha=alpha),
+        offset_type=gf.partial(_width_exp, alpha=alpha),
+    )
+
+    anchor_trsec_st = gf.path.straight(length=anchor_stub, npoints = max(int(anchor_stub / dx), 2))
+    anchor_trsec_spec = gf.path.extrude_transition(anchor_trsec_st, anchor_xtrans)
+
+    anchor_spec = gf.c.straight(length=anchor_size[0], cross_section=anchor_xs)
+    anchor_taper = c.add_ref(anchor_trsec_spec)
+    anchor = c.add_ref(anchor_spec)
+
+    ref2.connect('o1', ref.ports['o1'])
+    anchor_taper.connect('o1', ref2.ports['o2'])
+    anchor.connect('o2', anchor_taper.ports['o2'])
+
+    # Promote ports from base; keep o2 at the facet (not at the end of the stub)
+    c.add_port(name="ocl", port=ref2.ports["o1"])
+    c.add_port(name="o1", port=ref.ports["o1"])  # start side
+    c.add_port(name="o2", port=ref.ports["o2"])  # facet side
+
+    c.info.update(dict(
+        anchor_stub=anchor_stub,
+        anchor_size=anchor_size,
+        tip_width=width,
+    ))
+    return c
+
 # # --- Convenience factory examples ---
 # @gf.cell
 # def inverse_taper_2p5u_to_50nm_default() -> Component:
@@ -269,6 +339,9 @@ def two_stage_inverse_taper_with_anchor(
 #     return two_stage_inverse_taper_with_anchor(
 #         L1=180, L2=700, L_buf=15, start_width=1.5, mid_width=0.9, tip_width=0.05, dx=0.25, alpha=4.5
 #     )
+
+
+
 
 
 
@@ -342,6 +415,7 @@ def edge_coupler_array(
     # alignment_pairs[k] = i  → loop k uses channels (i, i+1)
     # NOTE: kfactory requires dict[str, ...] for cell args.
     alignment_pairs: dict[str, int] | None = None,
+    nc_ports: tuple[int, ...] | None = None,   # <-- NEW
     # adhesive keepout ...
     adhesive_keepout_layer: LayerSpec | None = None,
     adhesive_keepout_margin: Float2 = (50.0, 200.0),
@@ -349,6 +423,13 @@ def edge_coupler_array(
     adhesive_keepout_positive: bool = True,
 ) -> Component:
     c = Component()
+
+    nc_set = set(nc_ports or ())
+    invalid_nc = sorted(i for i in nc_set if i < 0 or i >= n)
+    if invalid_nc:
+        raise ValueError(
+            f"nc_ports contains out-of-range indices for n={n}: {invalid_nc}"
+        )
 
     # --- derive alignment mapping: which channel index belongs to which loop/side ---
     if alignment_pairs is not None:
@@ -409,6 +490,14 @@ def edge_coupler_array(
             align_index_to_loop_side[first] = (k, 0)
             align_index_to_loop_side[second] = (k, 1)
 
+    # --- NEW: NC cannot overlap alignment channels ---
+    overlap = sorted(nc_set.intersection(align_index_to_loop_side.keys()))
+    if overlap:
+        raise ValueError(
+            f"nc_ports overlaps alignment channels: {overlap}. "
+            "A channel cannot be both NC and alignment."
+        )
+
     # --- compute positions along axis ---
     if center:
         start = -0.5 * (n - 1) * pitch
@@ -430,8 +519,13 @@ def edge_coupler_array(
     width_idx = 0  # counts only channels that actually use widths
 
     for i in range(n):
+        is_nc = i in nc_set
         is_align = i in align_index_to_loop_side
         loop_side = align_index_to_loop_side.get(i)
+
+        # --- NC means nothing is drawn and nothing is exported ---
+        if is_nc:
+            continue
 
         spec = alignment_coupler if (is_align and alignment_coupler is not None) else edge_coupler
 
@@ -655,6 +749,7 @@ def edge_coupler_array(
     }
 
     # Usable channel info
+    c.info["fa_nc_ports"] = sorted(nc_set)   # <-- NEW metadata
     c.info["fa_usable_channel_indices"] = usable_channel_indices
     c.info["fa_channel_to_usable_index"] = channel_to_usable_index
 
@@ -682,13 +777,14 @@ edge_coupler_array_mesa_def = gf.partial(edge_coupler_array,
         adhesive_keepout_margin=(250, 50),
         adhesive_keepout_axis="x",
         axis_reflection=True, 
-        widths=(0.8,1,1.2,1.4))
+        widths=(0.8,1,1.2,1.4),
+        nc_ports=(3, 7, 12),)
 
 
 if __name__ == "__main__":
 
-    # c = two_stage_inverse_taper(start_width = 1.2)
-    c = edge_coupler_array_mesa_def()
+    # c = two_stage_inverse_taper_with_anchor(start_width = 1.2, width=1.2, mid_width=1.2, tip_width=1.2)
+    # c = edge_coupler_array_mesa_def()
     # c = edge_coupler_array(
     #     edge_coupler=two_stage_inverse_taper_with_anchor,
     #     alignment_coupler=edge_coupler_silicon_al,  # or a special one
@@ -699,6 +795,10 @@ if __name__ == "__main__":
     #     adhesive_keepout_margin=(250, 50),
     #     adhesive_keepout_axis="x",
     #     axis_reflection=False)
+    c = butt_ec_with_anchor(L1=1000,
+                            L_buf=15,
+                            width=1.5,
+                            cleave_marker_layer=(10,0))
         
     c.show()
     print(c.info)

@@ -1,9 +1,11 @@
 import gdsfactory as gf
 
-from ekin_master_die import ekn_master_die_ds, edge_coupler_array_ekn_def
+from ekin_master_die import ekn_master_die_ds, edge_coupler_array_ekn_def, edge_coupler_array_ekn_def_centerskip, edge_coupler_array_ekn_def_butt
 from test_crosssections import xs_ekn300_te_IMGREV
 
 label_txt = gf.partial(gf.components.text_rectangular, layer = "GE")
+
+
 
 def ekst_v2_brt_master(
         master_die: gf.typings.ComponentSpec = ekn_master_die_ds,
@@ -11,7 +13,12 @@ def ekst_v2_brt_master(
         bend_rads: tuple = (300,400,500,600,700,800,1000),
         cross_section:gf.typings.CrossSectionSpec = xs_ekn300_te_IMGREV,
         ec_array_def: gf.typings.ComponentSpec = edge_coupler_array_ekn_def,
-        label_txt: gf.typings.ComponentSpec = label_txt
+        label_txt: gf.typings.ComponentSpec = label_txt,
+        label: str = "EKST_v2\nBRT",
+        chip_id_label: str = "EKST_v2 BRT\nW00_I00\nX20.0 Y20.0",
+        ext_grp_spacing: float = 0,
+
+
         
 ) -> gf.Component:
 
@@ -43,12 +50,17 @@ def ekst_v2_brt_master(
     ekn_bend=gf.partial(gf.c.bend_euler, cross_section=xs_ekn300_te_IMGREV)
 
     routes = []
-    start_offset = 13.5 * ec_pitch # what a magic constant :D :D 
+
+    # TODO: fix start offset to calculate how many ports are utilized and then decide where to go. 
+    start_offset = (len(widths)*len(bend_rads)-1)/2 * ec_pitch + (len(bend_rads)-1)/2 * ext_grp_spacing
+
+    #start_offset = 13.5 * (ec_pitch) # what a magic constant :D :D 
     lbl_offset = ec_array_def().settings["text_offset"]
 
     for i in range(0, len(bend_rads)):
+
         for x in range(0, len(widths)):
-            offset = int(start_offset - (i*len(widths)+x)*ec_pitch)
+            offset = int(start_offset - (i*len(widths)+x)*(ec_pitch)-ext_grp_spacing*i)
             route = gf.routing.route_single(
                     component=c,
                     cross_section=cross_section,
@@ -90,9 +102,15 @@ def ekst_v2_brt_master(
     # Add the Chip name tag
     # -------------------------------------------------------------------------
 
-    tag = c.add_ref(label_txt(size=100, text="EKST_v2\nBRT")).drotate(90).dmove(origin=(0,0), destination=(-9250, 600))
+    if label != None:
+        tag = c.add_ref(label_txt(size=100, text=label)).drotate(90).dmove(origin=(0,0), destination=(-9250, 600))
+    if chip_id_label != None:
+        chip_id_tag = c.add_ref(label_txt(size=30, text=chip_id_label, justify = "center")).dmove(origin=(0,0), destination=(8550, -4350))
+
     return c
 
 
 if __name__ == "__main__":
-    ekst_v2_brt_master().show()
+    #ekst_v2_brt_master(ext_grp_spacing=127).show()
+    ekst_v2_brt_master(ext_grp_spacing=127, ec_array_def=edge_coupler_array_ekn_def_butt).show()
+    #ekst_v2_brt_master(bend_rads=(2000,1000), widths=(2,4,6,8,2,4,6,8,2,4,6,8),ext_grp_spacing=512, label="EKST_v2\nMMWG", ec_array_def=edge_coupler_array_ekn_def_centerskip).show()
