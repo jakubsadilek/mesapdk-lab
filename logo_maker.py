@@ -86,8 +86,37 @@ def _sample_subpath(subpath, resolution: float = 0.2) -> np.ndarray:
 
     return pts
 
-
 def _path_to_shapely(path, resolution: float = 0.2):
+    """
+    Converts one SVG path into shapely geometry using nested-ring logic.
+    """
+    rings = []
+
+    for sub in path.continuous_subpaths():
+        if not sub.isclosed():
+            continue
+
+        ring = _sample_subpath(sub, resolution=resolution)
+
+        # remove degenerate rings
+        if len(ring) < 3:
+            continue
+
+        rings.append(ring)
+
+    if not rings:
+        return None
+
+    geom = _polygon_from_nested_rings(rings)
+
+    if geom is None:
+        return None
+
+    if not geom.is_valid:
+        geom = geom.buffer(0)
+
+    return geom
+# def _path_to_shapely(path, resolution: float = 0.2):
     """
     Converts one SVG path into shapely geometry.
 
@@ -109,7 +138,8 @@ def _path_to_shapely(path, resolution: float = 0.2):
         if poly.is_empty:
             continue
 
-        geom = poly if geom is None else geom.symmetric_difference(poly)
+        #geom = poly if geom is None else geom.symmetric_difference(poly)
+        geom = poly if geom is None else geom.union(poly)
 
     if geom is None:
         return None
@@ -164,6 +194,75 @@ def _add_shapely_to_component(
         else:
             c.add_polygon(exterior, layer=layer)
 
+def _polygon_from_nested_rings(rings: list[np.ndarray]):
+    """
+    Build shapely geometry from nested closed rings using containment depth.
+
+    Even depth  -> filled shell
+    Odd depth   -> hole in nearest even-depth parent
+    """
+    polys = []
+    for ring in rings:
+        poly = Polygon(ring)
+        if not poly.is_valid:
+            poly = poly.buffer(0)
+        if poly.is_empty:
+            continue
+        if isinstance(poly, Polygon):
+            polys.append(poly)
+        elif isinstance(poly, MultiPolygon):
+            polys.extend(poly.geoms)
+
+    if not polys:
+        return None
+
+    # Sort largest first so parents are processed before children
+    polys = sorted(polys, key=lambda p: abs(p.area), reverse=True)
+
+    parents = [None] * len(polys)
+    depth = [0] * len(polys)
+
+    for i, p in enumerate(polys):
+        parent_idx = None
+        parent_area = None
+        rep = p.representative_point()
+
+        for j in range(i):
+            candidate = polys[j]
+            if candidate.contains(rep):
+                a = abs(candidate.area)
+                if parent_area is None or a < parent_area:
+                    parent_idx = j
+                    parent_area = a
+
+        parents[i] = parent_idx
+        depth[i] = 0 if parent_idx is None else depth[parent_idx] + 1
+
+    # For every even-depth polygon, collect its immediate odd-depth children as holes
+    result = []
+    for i, p in enumerate(polys):
+        if depth[i] % 2 != 0:
+            continue
+
+        holes = []
+        for j, parent_idx in enumerate(parents):
+            if parent_idx == i and depth[j] == depth[i] + 1:
+                holes.append(np.asarray(polys[j].exterior.coords[:-1]))
+
+        shell = np.asarray(p.exterior.coords[:-1])
+        poly = Polygon(shell=shell, holes=holes)
+
+        if not poly.is_valid:
+            poly = poly.buffer(0)
+        if poly.is_empty:
+            continue
+
+        result.append(poly)
+
+    if not result:
+        return None
+
+    return unary_union(result)
 
 @gf.cell
 def svg_logo(
@@ -265,7 +364,7 @@ def svg_logo(
 if __name__ == "__main__":
     gf.gpdk.PDK.activate()
     logo = svg_logo(
-        svg_path="./static/AQO_logo.svg",
+        svg_path="./static/AQO_logo2.svg",
         layer=(1, 0),
         target_width_um=500.0,   # final width in um
         resolution=0.08,         # smaller -> smoother curves
@@ -273,7 +372,7 @@ if __name__ == "__main__":
     )
 
     # Preview in python / notebook
-    logo.plot()
+    logo.show()
 
     # Export directly
     logo.write_gds("aqo_logo.gds", with_metadata=False)

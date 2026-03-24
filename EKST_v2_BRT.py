@@ -14,12 +14,11 @@ def ekst_v2_brt_master(
         cross_section:gf.typings.CrossSectionSpec = xs_ekn300_te_IMGREV,
         ec_array_def: gf.typings.ComponentSpec = edge_coupler_array_ekn_def,
         label_txt: gf.typings.ComponentSpec = label_txt,
-        label: str = "EKST_v2\nBRT",
-        chip_id_label: str = "EKST_v2 BRT\nW00_I00\nX20.0 Y20.0",
+        label: str = "EKAJ_v0\nBRT",
+        chip_id_label: str = "EKAJ_v0 BRT\nW00_I00\nX20.0 Y20.0",
         ext_grp_spacing: float = 0,
-
-
-        
+        logo: gf.typings.ComponentSpec = None,
+        logo_loc: gf.typings.Position = None,        
 ) -> gf.Component:
     
     d = gf.Component()
@@ -111,14 +110,33 @@ def ekst_v2_brt_master(
     if chip_id_label != None:
         chip_id_tag = d.add_ref(label_txt(size=30, text=chip_id_label, justify = "center")).dmove(origin=(0,0), destination=(8550, -4350))
 
+    # -------------------------------------------------------------------------
+    # Logo placement
+    # -------------------------------------------------------------------------
+
+    if logo != None and logo_loc != None:
+        logo_ref = d.add_ref(component=logo).dmove(origin=(0,0), destination=logo_loc)
+
 
     d.info = md.cell.info
-    
+
     return d
 
 
 
 if __name__ == "__main__":
+
+
+    from logo_maker import svg_logo
+
+    logo = svg_logo(
+            svg_path="./static/AQO_logo2.svg",
+            layer=(5,0),
+            target_width_um=1500.0,   # final width in um
+            resolution=0.08,         # smaller -> smoother curves
+            center=True,
+        )
+
     #ekst_v2_brt_master(ext_grp_spacing=127).show()
-    ekst_v2_brt_master(ext_grp_spacing=127, ec_array_def=edge_coupler_array_ekn_def_butt).show()
+    ekst_v2_brt_master(ext_grp_spacing=127, ec_array_def=edge_coupler_array_ekn_def_butt, logo=logo, logo_loc=(-5000,5000)).show()
     #ekst_v2_brt_master(bend_rads=(2000,1000), widths=(2,4,6,8,2,4,6,8,2,4,6,8),ext_grp_spacing=512, label="EKST_v2\nMMWG", ec_array_def=edge_coupler_array_ekn_def_centerskip).show()

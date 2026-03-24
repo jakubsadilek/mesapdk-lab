@@ -16,3 +16,6 @@ uv.lock
 
 # Mac / system
 .DS_Store
+
+# Exports
+exports/

@@ -17,8 +17,10 @@ def ekst_v2_pul_master(
         cross_section:gf.typings.CrossSectionSpec = xs_ekn300_te_IMGREV,
         ec_array_def: gf.typings.ComponentSpec = edge_coupler_array_ekn_def_3loops,
         label_txt: gf.typings.ComponentSpec = label_txt,
-        label: str = "EKST_v2\nPUL",
-        chip_id_label: str = "EKST_v2 PUL\nW00_I00\nX20.0 Y20.0",
+        label: str = "EKAJ_v0\nPUL",
+        chip_id_label: str = "EKAJ_v0 PUL\nW00_I00\nX20.0 Y20.0",
+        logo: gf.typings.ComponentSpec = None,
+        logo_loc: gf.typings.Position = None,
         
 ) -> gf.Component:
 
@@ -126,7 +128,17 @@ def ekst_v2_pul_master(
     if chip_id_label != None:
         chip_id_tag = d.add_ref(label_txt(size=30, text=chip_id_label, justify = "center")).dmove(origin=(0,0), destination=(8550, -4350))
 
-    print(md.cell.info)
+
+    # -------------------------------------------------------------------------
+    # Logo placement
+    # -------------------------------------------------------------------------
+
+    if logo != None and logo_loc != None:
+        logo_ref = d.add_ref(component=logo).dmove(origin=(0,0), destination=logo_loc)
+
+
+
+
     d.info = md.cell.info
     print(d.info)
 
@@ -148,4 +160,13 @@ def ekst_v2_pul_master(
 
 
 if __name__ == "__main__":
-    ekst_v2_pul_master(width = (1.25,)).show()
+    from logo_maker import svg_logo
+
+    logo = svg_logo(
+            svg_path="./static/AQO_logo2.svg",
+            layer=(5,0),
+            target_width_um=1500.0,   # final width in um
+            resolution=0.08,         # smaller -> smoother curves
+            center=True,
+        )
+    ekst_v2_pul_master(width = (1.25,),logo=logo, logo_loc=(-5000,-3000)).show()
