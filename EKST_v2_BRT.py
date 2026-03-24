@@ -6,7 +6,7 @@ from test_crosssections import xs_ekn300_te_IMGREV
 label_txt = gf.partial(gf.components.text_rectangular, layer = "GE")
 
 
-
+@gf.cell_with_module_name
 def ekst_v2_brt_master(
         master_die: gf.typings.ComponentSpec = ekn_master_die_ds,
         widths: tuple = (0.75, 1, 1.25, 1.5),
@@ -47,7 +47,7 @@ def ekst_v2_brt_master(
     ports1=md.ports.filter(regex=r'^W01_(?!AL)\d+o2$')
     ports2=md.ports.filter(regex=r'^E01_(?!AL)\d+o2$')
 
-    print(ports1)
+    #print(ports1)
     
 
     ekn_bend=gf.partial(gf.c.bend_euler, cross_section=xs_ekn300_te_IMGREV)

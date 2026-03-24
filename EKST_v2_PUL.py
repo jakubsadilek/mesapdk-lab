@@ -9,6 +9,7 @@ import numpy as np
 gf.CONF.layer_marker=(26,0)
 label_txt = gf.partial(gf.components.text_rectangular, layer = "GE")
 
+@gf.cell_with_module_name
 def ekst_v2_pul_master(
         master_die: gf.typings.ComponentSpec = ekn_master_die_ss,
         lengths: tuple = (12000,7500,4000,1500,1),
@@ -101,7 +102,7 @@ def ekst_v2_pul_master(
     for arr in md.cell.info['fiber_arrays']:
          for loop in arr["fa_alignment_port_names"]:
             al_name = (arr["fa_alignment_port_names"][loop])
-            print(al_name)
+            #print(al_name)
 
             if int(loop) % 2 > 0:
                 rex1 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[0])
@@ -140,7 +141,7 @@ def ekst_v2_pul_master(
 
 
     d.info = md.cell.info
-    print(d.info)
+    #print(d.info)
 
     return d
 
