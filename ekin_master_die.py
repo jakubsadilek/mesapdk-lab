@@ -85,7 +85,25 @@ edge_coupler_array_ekn_def_3loops = gf.partial(edge_coupler_array,
         axis_reflection=False, 
         widths=(0.75,1,1.25,1.5), 
         text = label_txt)
-        
+
+
+edge_coupler_array_stph_but = gf.partial(edge_coupler_array,
+        edge_coupler=ekn_buttec,
+        alignment_coupler=ekn_tsitec,  # or a special one
+        n=7,
+        n_alignment_loops=0,                     # ignored when alignment_pairs is given
+        alignment_pairs={"0": 0, "1": 5},
+        adhesive_keepout_layer="TE",
+        adhesive_keepout_margin=(250, 50),
+        adhesive_keepout_axis="x",
+        axis_reflection=False, 
+        widths=(12,), 
+        text = label_txt,
+        nc_ports=(2,4,)
+)
+
+
+
 # Build your arrays elsewhere, fully configured
 
 fa_w1 = edge_coupler_array_ekn_def(
@@ -112,9 +130,9 @@ ekn_master_die_ds = gf.partial(die_frame_mesa,
     polish_ruler=polish_ruler,
     ruler_pos={"E": (-4450, 4450), "W": (-4450, 4450)},
     layer_ruler='GE',
-    pad=gf.c.pad(size=(500,500)),
-    npads=20,
-    pad_pitch=750.0,
+    pad=gf.c.pad(size=(350,350)),
+    npads=30,
+    pad_pitch=500.0,
     electrical_sides=("N", "S"),
     xoffset_dc_pads=(-250.0, -400.0),
     center_pads=True,
