@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import gdsfactory as gf
-from gdsfactory.typings import ComponentSpec
+from gdsfactory.typings import ComponentSpec, CrossSectionSpec
 
 
 @gf.cell
@@ -9,9 +9,10 @@ def spiral_symmetric(
     length: float = 100.0,
     bend: ComponentSpec = "bend_euler",
     straight: ComponentSpec = "straight",
-    cross_section: ComponentSpec = "strip",
+    cross_section: CrossSectionSpec = "strip",
     spacing: float = 3.0,
     n_loops: int = 6,
+    width: float = None,
     opposite_ends: bool = True,
     centered: bool = True
 ) -> gf.Component:
@@ -37,8 +38,15 @@ def spiral_symmetric(
         raise ValueError("n_loops must be >= 0 for a meaningful spiral.")
 
     c = gf.Component()
-    xs = gf.get_cross_section(cross_section)
-    b = gf.get_component(bend, cross_section=cross_section)
+
+    if width is not None:
+        xs = gf.get_cross_section(cross_section, width = width)
+    else:
+        xs = gf.get_cross_section(cross_section)
+
+    
+    b = gf.get_component(bend, cross_section=xs)
+
 
     radius = max(getattr(xs, "radius", 0.0), b.info["radius"])
     bend_length = b.info["length"]
@@ -46,18 +54,19 @@ def spiral_symmetric(
 
     lin_length = 0.0
 
-    def add_straight(L: float) -> gf.ComponentReference:
+    def add_straight(L: float, cs: gf.typings.CrossSectionSpec = xs) -> gf.ComponentReference:
         """Helper to create a straight with consistent kwargs."""
         return c << gf.get_component(
             straight,
-            cross_section=cross_section,
-            length=L,
+            cross_section=cs,
+            length=L
         )
 
 # -------------------------------------------------------------------------
     # Inner "starter" geometry: two parallel arms with spacing + little jog.
     # -------------------------------------------------------------------------
     b_inners = [c << b for _ in range(4)]
+    print(b_inners[0].ports[0].width)
     lin_length += 4 * bend_length
 
     # mirror first bend to face correctly
@@ -68,7 +77,8 @@ def spiral_symmetric(
 
     if length > 0:
         # central pair of straights – identical to original behaviour
-        l0_1 = add_straight(length / 2)
+        l0_1 = add_straight(length / 2, cs = xs)
+        print(l0_1.ports[0].width)
         l0_1.connect("o1", b_inners[1], "o2")
 
         l0_1b = add_straight(length / 2)
@@ -216,6 +226,6 @@ def spiral_symmetric(
 
 if __name__ == "__main__":
     gf.gpdk.PDK.activate()
-    c = spiral_symmetric(cross_section="rib", length=10000, spacing=20.0, n_loops=25, bend=gf.partial(gf.c.bend_euler,radius=500), opposite_ends=False, centered=True)
+    c = spiral_symmetric(cross_section="rib", length=10000, spacing=127.0, n_loops=25, bend=gf.partial(gf.c.bend_euler,radius=500), opposite_ends=False, centered=True, width=20)
     print(c.info["length"])
     c.show()
