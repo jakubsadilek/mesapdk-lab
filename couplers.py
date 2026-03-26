@@ -175,7 +175,7 @@ def two_stage_inverse_taper_with_anchor(
     width: float | None = None,
     start_width: float = 2.5,
     mid_width: float = 1.0,
-    tip_width: float = 0.05,
+    tip_width: float = 0.1, #Changed to 100 nm to avoid underetching
     layer: LayerSpec = (1, 0),
     dx: float = 0.25,
     alpha: float = 4.0,

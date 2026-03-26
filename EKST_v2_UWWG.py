@@ -62,7 +62,7 @@ def ekst_v2_uwwg_master(
 
     # for i in range(0, len(bend_rads)):
 
-    for x in range(0, len(widths),2):
+    for x in range(0, len(widths)):
             # offset = int(start_offset - (i*len(widths)+x)*(ec_pitch)-ext_grp_spacing*i)
         route = gf.routing.route_single(
                     component=d,
@@ -138,5 +138,6 @@ if __name__ == "__main__":
         )
 
     #ekst_v2_brt_master(ext_grp_spacing=127).show()
-    ekst_v2_uwwg_master(ext_grp_spacing=127, ec_array_def=edge_coupler_array_ekn_def_butt, logo=logo, logo_loc=(-5000,5000)).show()
+    ekst_v2_uwwg_master(ext_grp_spacing=127, ec_array_def=edge_coupler_array_ekn_def_butt, logo=logo, logo_loc=(0,-3000)).show()
     # ekst_v2_uwwg_master(bend_rads=(2000,1000), widths=(2,4,6,8,2,4,6,8,2,4,6,8),ext_grp_spacing=512, label="EKST_v2\nMMWG", ec_array_def=edge_coupler_array_ekn_def_centerskip).show()
+

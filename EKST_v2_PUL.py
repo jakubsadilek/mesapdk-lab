@@ -36,8 +36,8 @@ def ekst_v2_pul_master(
         }
     ))
     
-
-
+    #A quick fix to gap problem
+    cross_section_test = xs_ekn300_te_IMGREV(width=width[0])
     
     # -------------------------------------------------------------------------
     # Generate spirals
@@ -47,8 +47,8 @@ def ekst_v2_pul_master(
     for length in lengths:
         #spirals[str(length)] = spiral_symmetric(length=length,
         spirals.append(spiral_symmetric(length=length,
-                                   bend=gf.components.bend_euler(radius=bend_rad, cross_section=xs_ekn300_te_IMGREV),
-                                   cross_section=xs_ekn300_te_IMGREV, 
+                                   bend=gf.components.bend_euler(radius=bend_rad, cross_section=cross_section_test),
+                                   cross_section=cross_section_test,
                                    n_loops=6,
                                    spacing=50,
                                    opposite_ends=False))
@@ -80,6 +80,7 @@ def ekst_v2_pul_master(
     edge = float(md.cell.info["die_frame"]['die_polished_bbox'][2])
     aa.dmovex(origin=aa.bbox().right, destination=edge - bend_rad)
 
+
     ports=md.ports.filter(regex=r'^W01_(?!AL)\d+o2$')[::-1]#[len(aa.ports):]
     ports2 = ports[len(ports)-len(aa.ports):]
     ekn_bend=gf.partial(gf.c.bend_euler, cross_section=xs_ekn300_te_IMGREV)
@@ -88,14 +89,12 @@ def ekst_v2_pul_master(
         component=d,
         ports1=aa.ports,
         ports2=ports2,
-        cross_section=xs_ekn300_te_IMGREV,
+        cross_section=xs_ekn300_te_IMGREV(width=width[0]),
         bend=ekn_bend, 
         separation=127,
         sort_ports=True, show_waypoints=True,
         layer_marker=(25,0),
-        radius=600
-
-)
+        radius=600)
 
 
 #TODO: This is plain hack ... if there would be odd number of al. loops it would fall apart
