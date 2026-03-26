@@ -37,6 +37,10 @@ def ekst_v2_pul_master(
     ))
     
 
+    xs_local = gf.get_cross_section(cross_section=cross_section, width = width[0])
+
+    ekn_bend = gf.partial(gf.components.bend_euler, radius = bend_rad, cross_section = cross_section, width = width[0])
+
 
     
     # -------------------------------------------------------------------------
@@ -48,8 +52,8 @@ def ekst_v2_pul_master(
         #spirals[str(length)] = spiral_symmetric(length=length,
         spirals.append(spiral_symmetric(length=length,
                                    width = width[0],
-                                   bend=gf.components.bend_euler(radius=bend_rad, cross_section=xs_ekn300_te_IMGREV),
-                                   cross_section=xs_ekn300_te_IMGREV, 
+                                   bend=ekn_bend,
+                                   cross_section=xs_local, 
                                    n_loops=6,
                                    spacing=50,
                                    opposite_ends=False))
@@ -83,18 +87,18 @@ def ekst_v2_pul_master(
 
     ports=md.ports.filter(regex=r'^W01_(?!AL)\d+o2$')[::-1]#[len(aa.ports):]
     ports2 = ports[len(ports)-len(aa.ports):]
-    ekn_bend=gf.partial(gf.c.bend_euler, cross_section=xs_ekn300_te_IMGREV)
+    #ekn_bend=gf.partial(gf.c.bend_euler, cross_section=xs_ekn300_te_IMGREV)
 
     routes = gf.routing.route_bundle(
         component=d,
         ports1=aa.ports,
         ports2=ports2,
-        cross_section=xs_ekn300_te_IMGREV,
+        cross_section=xs_local,
         bend=ekn_bend, 
         separation=127,
         sort_ports=True, show_waypoints=True,
         layer_marker=(25,0),
-        radius=600
+        radius=bend_rad
 
 )
 
@@ -146,19 +150,7 @@ def ekst_v2_pul_master(
 
     return d
 
-    lens = []
 
-    for item in spirals:
-        lens.append(item.info["length"])
-
-
-    plt.scatter(x=np.arange(len(lens)), y=lens)
-
-    plt.show()   
-
-    print(c.info)
-
-    return c
 
 
 if __name__ == "__main__":
@@ -171,4 +163,4 @@ if __name__ == "__main__":
             resolution=0.08,         # smaller -> smoother curves
             center=True,
         )
-    ekst_v2_pul_master(width = (1.25,),logo=logo, logo_loc=(-5000,-3000)).show()
+    ekst_v2_pul_master(width = (1.25,),logo=logo, logo_loc=(-5000,-3000), cross_section=xs_ekn300_te_IMGREV).show()
