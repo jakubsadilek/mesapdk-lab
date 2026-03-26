@@ -9,7 +9,7 @@ label_txt = gf.partial(gf.components.text_rectangular, layer = "GE")
 @gf.cell_with_module_name
 def ekst_v2_uwwg_master(
         master_die: gf.typings.ComponentSpec = ekn_master_die_straight,
-        widths: tuple = (72, 72,72,72,72,72,72,72,72,72,72,72,72,72,72,72,72,72,72,72,72,72,72,72,72,72,72,72), 
+        widths: tuple = (72, 72,72,72,72,72,72,72,72,72,72,72,72,72), 
         bend_rads: tuple = None,
         cross_section:gf.typings.CrossSectionSpec = xs_ekn300_te_IMGREV,
         ec_array_def: gf.typings.ComponentSpec = edge_coupler_array_ekn_def,
@@ -23,14 +23,15 @@ def ekst_v2_uwwg_master(
     
     d = gf.Component()
 
-    eca_w1 = ec_array_def(widths = widths)
-    eca_e1 = ec_array_def(widths = widths, axis_reflection = True)
+    eca_w1 = ec_array_def(widths = widths, nc_ports = [ 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28 ], text_offset = (0,100))
+    eca_e1 = ec_array_def(widths = widths, nc_ports = [ 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28 ], text_offset = (0,100), axis_reflection = True)
 
     md = d.add_ref(master_die(
         fiber_arrays_by_side={
         "W": [eca_w1],
         "E": [eca_e1],
-        }
+        },
+        
     ))
     #c.locked = False
 
