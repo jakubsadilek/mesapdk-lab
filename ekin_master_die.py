@@ -11,7 +11,7 @@ from test_crosssections import xs_ekn300_te_IMGREV
 gf.config.rich_output()
 gf.gpdk.PDK.activate()
 
-ekn_tsitec = gf.partial(two_stage_inverse_taper_with_anchor, xs_waveguide = xs_ekn300_te_IMGREV, cleave_marker_layer = (10,0))
+ekn_tsitec = gf.partial(two_stage_inverse_taper_with_anchor, xs_waveguide = xs_ekn300_te_IMGREV, cleave_marker_layer = (10,0), tip_width = 0.3)
 ekn_buttec = gf.partial(butt_ec_with_anchor, xs_waveguide = xs_ekn300_te_IMGREV, cleave_marker_layer = (10,0), )
 
 label_txt = gf.partial(gf.components.text_rectangular, layer = "GE")
