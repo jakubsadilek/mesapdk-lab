@@ -1,6 +1,6 @@
 import gdsfactory as gf
 
-from ekin_master_die import ekn_master_die_ds, edge_coupler_array_stph_but
+from ekin_master_die import ekn_master_die_ds, edge_coupler_array_stph_but, edge_coupler_array_stph_tap
 from test_crosssections import xs_ekn300_te_IMGREV
 
 label_txt = gf.partial(gf.components.text_rectangular, layer = "GE")
@@ -10,7 +10,7 @@ label_txt = gf.partial(gf.components.text_rectangular, layer = "GE")
 def stephan_master_serpentine(
         master_die: gf.typings.ComponentSpec = ekn_master_die_ds,
         width: float = 12,
-        bend_rad: float = 2000,
+        bend_rad: float = 1000,
         cross_section:gf.typings.CrossSectionSpec = xs_ekn300_te_IMGREV,
         ec_array_def: gf.typings.ComponentSpec = edge_coupler_array_stph_but,
         label_txt: gf.typings.ComponentSpec = label_txt,
@@ -31,13 +31,13 @@ def stephan_master_serpentine(
         "E": [eca_e1],
         },
         fiber_offsets_by_side={
-        "W": [(-4000.0, 0.0)],  # two arrays on W with different along shifts
-        "E": (4000.0, 0.0),                    # one array on E
+        "W": [(-3000.0, 0.0)],  # two arrays on W with different along shifts
+        "E": (3000.0, 0.0),                    # one array on E
     },
     ))
     #c.locked = False
 
-        
+
     ec_available = len(md.cell.info["fiber_arrays"][0]["fa_usable_channel_indices"])
     req_connections = 1
     ec_pitch = md.cell.info["fiber_arrays"][0]["fa_pitch"]
@@ -52,12 +52,14 @@ def stephan_master_serpentine(
 
     #print(ports1)
     
+    xs_local = gf.get_cross_section(cross_section=cross_section, width = width)
 
-    ekn_bend=gf.partial(gf.c.bend_euler, cross_section=xs_ekn300_te_IMGREV)
+    ekn_bend = gf.partial(gf.components.bend_euler, radius = bend_rad, cross_section = cross_section, width = width)
+
+
+    #ekn_bend=gf.partial(gf.c.bend_euler, cross_section=xs_ekn300_te_IMGREV)
 
     routes = []
-
-    print(ports1[0])
 
     route = gf.routing.route_bundle(
             component=d,
@@ -69,9 +71,10 @@ def stephan_master_serpentine(
             start_straight_length=15000,
             #waypoints=(),
             #waypoints=((2000, ports1[0].y),(ports2[0].x, ports1[0].y),(0, 0), (ports1[0].x, ports2[0].y), (-2000, ports2[0].y)),
-            bend=ekn_bend(radius=bend_rad),
+            bend=ekn_bend(bend_rad),
             show_waypoints=True,
             layer_marker=(20,0),
+            radius=bend_rad,
         )
     
     #print(bend_rads[i], widths[x], route.length)
@@ -138,5 +141,5 @@ if __name__ == "__main__":
         )
 
     #ekst_v2_brt_master(ext_grp_spacing=127).show()
-    stephan_master_serpentine( ec_array_def=edge_coupler_array_stph_but, logo=logo, logo_loc=(8500,-3650), bend_rad=2000).show()
+    stephan_master_serpentine( ec_array_def=edge_coupler_array_stph_tap, logo=logo, logo_loc=(8500,-3650), bend_rad=1500).show()
     #ekst_v2_brt_master(bend_rads=(2000,1000), widths=(2,4,6,8,2,4,6,8,2,4,6,8),ext_grp_spacing=512, label="EKST_v2\nMMWG", ec_array_def=edge_coupler_array_ekn_def_centerskip).show()

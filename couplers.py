@@ -45,7 +45,44 @@ def _width_exp(t: float, y1: float, y2: float, alpha: float = 3.0) -> float:
 # You can also array multiple tapers or mirror them as needed.
 
 
+@gf.cell_with_module_name
+def pos_taper_ec(
+    width: float | None = None, # µm - default handler for start_width external call
+    start_width: float = 2.5,   # µm
+    tip_width: float = 0.05,    # µm (drawn 50 nm, expect ~60–80 nm on wafer)
+    L: float = 200.0,           # µm: linear taper length (start_width -> tip_width)
+    L_buf: float = 15.0,        # µm: straight buffer after tip before facet
+    layer: LayerSpec = "WG",
+    xs_waveguide: CrossSectionSpec | None = 'strip',
+    cleave_marker_layer: LayerSpec | None = None,
+) -> Component:
+    
+    c = gf.Component()
 
+    if not (start_width > 0 and tip_width > 0):
+        raise ValueError("All widths must be positive.")
+    if not (L >= 1 and L_buf >= 0):
+        raise ValueError("Lengths must be >= 1 µm (buffer can be 0).")
+    # if not (start_width > mid_width > tip_width):
+    #     raise ValueError("Require start_width > mid_width > tip_width.")
+
+    if start_width is None and width is not None:
+        start_width = width
+    elif start_width is not None and width is not None:
+        warnings.warn(
+            "`width` overrides `start_width`. "
+        "Use only `start_width` going forward.",
+            stacklevel=2,
+        )
+        start_width = width
+    elif start_width is None:
+        raise ValueError("start_width (or width) must be provided.")
+
+
+    
+
+    return c
+    
 
 @gf.cell_with_module_name
 def two_stage_inverse_taper(
@@ -308,42 +345,6 @@ def butt_ec_with_anchor(
     ))
     return c
 
-# # --- Convenience factory examples ---
-# @gf.cell
-# def inverse_taper_2p5u_to_50nm_default() -> Component:
-#     """Default example close to your spec: 2.5 µm → 0.9 µm (200 µm), then → 50 nm (800 µm), 15 µm buffer."""
-#     return two_stage_inverse_taper(
-#         L1=200, L2=800, L_buf=15, start_width=2.5, mid_width=0.9, tip_width=0.05, dx=0.25, alpha=4.0
-#     )
-
-
-# @gf.cell
-# def inverse_taper_1p5u_to_50nm_compact() -> Component:
-#     """A slightly shorter variant for 1.5 µm start width."""
-#     return two_stage_inverse_taper(
-#         L1=180, L2=700, L_buf=15, start_width=1.5, mid_width=0.9, tip_width=0.05, dx=0.25, alpha=4.5
-#     )
-
-
-# @gf.cell
-# def inverse_taper_2p5u_to_50nm_def_w_anker() -> Component:
-#     """Default example close to your spec: 2.5 µm → 0.9 µm (200 µm), then → 50 nm (800 µm), 15 µm buffer."""
-#     return two_stage_inverse_taper_with_anchor(
-#         L1=200, L2=800, L_buf=15, start_width=2.5, mid_width=0.9, tip_width=0.05, dx=0.25, alpha=4.0
-#     )
-
-
-# @gf.cell
-# def inverse_taper_1p5u_to_50nm_compact_w_anker() -> Component:
-#     """A slightly shorter variant for 1.5 µm start width."""
-#     return two_stage_inverse_taper_with_anchor(
-#         L1=180, L2=700, L_buf=15, start_width=1.5, mid_width=0.9, tip_width=0.05, dx=0.25, alpha=4.5
-#     )
-
-
-
-
-
 
 inverse_taper_1p5u_to_50nm_default = gf.partial(
     two_stage_inverse_taper,
@@ -392,6 +393,8 @@ inverse_taper_1p5u_to_50nm_compact_with_anchor = gf.partial(
     dx=0.25,
     alpha=4.5,
 )
+
+
 
 
 #ARRAYS 
