@@ -102,20 +102,20 @@ edge_coupler_array_stph_but = gf.partial(edge_coupler_array,
         nc_ports=(2,4,)
 )
 
-edge_coupler_array_stph_tap = gf.partial(edge_coupler_array,
-        edge_coupler=,
-        alignment_coupler=ekn_tsitec,  # or a special one
-        n=7,
-        n_alignment_loops=0,                     # ignored when alignment_pairs is given
-        alignment_pairs={"0": 0, "1": 5},
-        adhesive_keepout_layer="TE",
-        adhesive_keepout_margin=(250, 50),
-        adhesive_keepout_axis="x",
-        axis_reflection=False, 
-        widths=(12,), 
-        text = label_txt,
-        nc_ports=(2,4,)
-)
+# edge_coupler_array_stph_tap = gf.partial(edge_coupler_array,
+#         edge_coupler=,
+#         alignment_coupler=ekn_tsitec,  # or a special one
+#         n=7,
+#         n_alignment_loops=0,                     # ignored when alignment_pairs is given
+#         alignment_pairs={"0": 0, "1": 5},
+#         adhesive_keepout_layer="TE",
+#         adhesive_keepout_margin=(250, 50),
+#         adhesive_keepout_axis="x",
+#         axis_reflection=False, 
+#         widths=(12,), 
+#         text = label_txt,
+#         nc_ports=(2,4,)
+# )
 
 
 
