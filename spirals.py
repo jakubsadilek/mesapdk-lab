@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import gdsfactory as gf
-from gdsfactory.typings import ComponentSpec
+from gdsfactory.typings import ComponentSpec, CrossSectionSpec
 
 
 @gf.cell
@@ -9,9 +9,10 @@ def spiral_symmetric(
     length: float = 100.0,
     bend: ComponentSpec = "bend_euler",
     straight: ComponentSpec = "straight",
-    cross_section: ComponentSpec = "strip",
+    cross_section: CrossSectionSpec = "strip",
     spacing: float = 3.0,
     n_loops: int = 6,
+    width: float = None,
     opposite_ends: bool = True,
     centered: bool = True
 ) -> gf.Component:
@@ -37,8 +38,15 @@ def spiral_symmetric(
         raise ValueError("n_loops must be >= 0 for a meaningful spiral.")
 
     c = gf.Component()
-    xs = gf.get_cross_section(cross_section)
-    b = gf.get_component(bend, cross_section=cross_section)
+
+    if width is not None:
+        xs = gf.get_cross_section(cross_section, width = width)
+    else:
+        xs = gf.get_cross_section(cross_section, width = cross_section.width)
+
+    
+    b = gf.get_component(bend, cross_section=xs)
+
 
     radius = max(getattr(xs, "radius", 0.0), b.info["radius"])
     bend_length = b.info["length"]
@@ -50,7 +58,7 @@ def spiral_symmetric(
         """Helper to create a straight with consistent kwargs."""
         return c << gf.get_component(
             straight,
-            cross_section=cross_section,
+            cross_section=xs,
             length=L,
         )
 
@@ -216,6 +224,6 @@ def spiral_symmetric(
 
 if __name__ == "__main__":
     gf.gpdk.PDK.activate()
-    c = spiral_symmetric(cross_section="rib", length=10000, spacing=20.0, n_loops=25, bend=gf.partial(gf.c.bend_euler,radius=500), opposite_ends=False, centered=True)
+    c = spiral_symmetric(cross_section="rib", length=10000, spacing=127.0, n_loops=25, bend=gf.partial(gf.c.bend_euler,radius=500), opposite_ends=False, centered=True, width= 20)
     print(c.info["length"])
     c.show()
