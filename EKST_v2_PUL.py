@@ -47,6 +47,7 @@ def ekst_v2_pul_master(
     for length in lengths:
         #spirals[str(length)] = spiral_symmetric(length=length,
         spirals.append(spiral_symmetric(length=length,
+                                   width = width[0],
                                    bend=gf.components.bend_euler(radius=bend_rad, cross_section=xs_ekn300_te_IMGREV),
                                    cross_section=xs_ekn300_te_IMGREV, 
                                    n_loops=6,
