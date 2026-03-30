@@ -15,7 +15,7 @@ ekn_tsitec = gf.partial(two_stage_inverse_taper_with_anchor, xs_waveguide = xs_e
 ekn_buttec = gf.partial(butt_ec_with_anchor, xs_waveguide = xs_ekn300_te_IMGREV, cleave_marker_layer = (10,0), )
 
 label_txt = gf.partial(gf.components.text_rectangular, layer = "GE")
-polish_rul_spec = gf.partial(polish_ruler, layer = 'GE')
+polish_ruler_spec = gf.partial(polish_ruler, layer = 'GE', bboxLayer = 'TM')
 
 edge_coupler_array_ekn_def = gf.partial(edge_coupler_array,
         edge_coupler=ekn_tsitec,
@@ -42,7 +42,7 @@ edge_coupler_array_ekn_def_butt = gf.partial(edge_coupler_array,
         adhesive_keepout_axis="x",
         axis_reflection=False, 
         widths=(0.75,1,1.25,1.5), 
-        text = label_txt)
+        text = label_txt    )
 
 edge_coupler_array_ekn_def_butt_3loops = gf.partial(edge_coupler_array,
         edge_coupler=ekn_buttec,
@@ -55,7 +55,7 @@ edge_coupler_array_ekn_def_butt_3loops = gf.partial(edge_coupler_array,
         adhesive_keepout_axis="x",
         axis_reflection=False, 
         widths=(0.75,1,1.25,1.5), 
-        text = label_txt)
+        text = label_txt   )
 
 edge_coupler_array_ekn_def_centerskip = gf.partial(edge_coupler_array,
         edge_coupler=ekn_buttec,
@@ -69,7 +69,7 @@ edge_coupler_array_ekn_def_centerskip = gf.partial(edge_coupler_array,
         axis_reflection=False, 
         widths=(0.75,1,1.25,1.5), 
         text = label_txt,
-        nc_ports=(14, 15, 16, 17),)
+        nc_ports=(14, 15, 16, 17)  )
 
 
 
@@ -84,7 +84,7 @@ edge_coupler_array_ekn_def_3loops = gf.partial(edge_coupler_array,
         adhesive_keepout_axis="x",
         axis_reflection=False, 
         widths=(0.75,1,1.25,1.5), 
-        text = label_txt)
+        text = label_txt   )
 
 
 edge_coupler_array_stph_but = gf.partial(edge_coupler_array,
@@ -102,20 +102,20 @@ edge_coupler_array_stph_but = gf.partial(edge_coupler_array,
         nc_ports=(2,4,)
 )
 
-edge_coupler_array_stph_tap = gf.partial(edge_coupler_array,
-        edge_coupler=,
-        alignment_coupler=ekn_tsitec,  # or a special one
-        n=7,
-        n_alignment_loops=0,                     # ignored when alignment_pairs is given
-        alignment_pairs={"0": 0, "1": 5},
-        adhesive_keepout_layer="TE",
-        adhesive_keepout_margin=(250, 50),
-        adhesive_keepout_axis="x",
-        axis_reflection=False, 
-        widths=(12,), 
-        text = label_txt,
-        nc_ports=(2,4,)
-)
+# edge_coupler_array_stph_tap = gf.partial(edge_coupler_array,
+#         edge_coupler=,
+#         alignment_coupler=ekn_tsitec,  # or a special one
+#         n=7,
+#         n_alignment_loops=0,                     # ignored when alignment_pairs is given
+#         alignment_pairs={"0": 0, "1": 5},
+#         adhesive_keepout_layer="TE",
+#         adhesive_keepout_margin=(250, 50),
+#         adhesive_keepout_axis="x",
+#         axis_reflection=False, 
+#         widths=(12,), 
+#         text = label_txt,
+#         nc_ports=(2,4,)
+# )
 
 
 
@@ -142,7 +142,7 @@ df = die_frame(
 ekn_master_die_ds = gf.partial(die_frame_mesa,
                                die_frame=df,
     # multiple arrays per side:
-    polish_ruler=polish_ruler,
+    polish_ruler=polish_ruler_spec,
     ruler_pos={"E": (-4450, 4450), "W": (-4450, 4450)},
     layer_ruler='GE',
     pad=gf.c.pad(size=(350,350)),
@@ -170,7 +170,7 @@ ekn_master_die_ds = gf.partial(die_frame_mesa,
 ekn_master_die_ss = gf.partial(die_frame_mesa,
                                die_frame=df,
     # multiple arrays per side:
-    polish_ruler=polish_ruler,
+    polish_ruler=polish_ruler_spec,
     ruler_pos={"W": (-4450, 4450), },
     layer_ruler='GE',
     pad=gf.c.pad(size=(350,350)),
@@ -199,7 +199,7 @@ ekn_master_die_ss = gf.partial(die_frame_mesa,
 ekn_master_die_straight = gf.partial(die_frame_mesa,
                                die_frame=df,
     # multiple arrays per side:
-    polish_ruler=polish_ruler,
+    polish_ruler=polish_ruler_spec,
     ruler_pos={"W": (-4450, 4450), },
     layer_ruler='GE',
     pad=gf.c.pad(size=(350,350)),
