@@ -1,6 +1,6 @@
 import gdsfactory as gf
 
-from ekin_master_die import ekn_master_die_ds, edge_coupler_array_stph_but, edge_coupler_array_stph_tap
+from ekin_master_die import ekn_master_die_ds, edge_coupler_array_stph_but #,edge_coupler_array_stph_tap
 from test_crosssections import xs_ekn300_te_IMGREV
 
 label_txt = gf.partial(gf.components.text_rectangular, layer = "GE")
@@ -141,5 +141,5 @@ if __name__ == "__main__":
         )
 
     #ekst_v2_brt_master(ext_grp_spacing=127).show()
-    stephan_master_serpentine( ec_array_def=edge_coupler_array_stph_tap, logo=logo, logo_loc=(8500,-3650), bend_rad=1500).show()
+    stephan_master_serpentine( ec_array_def=edge_coupler_array_stph_but, logo=logo, logo_loc=(8500,-3650), bend_rad=1500).show()
     #ekst_v2_brt_master(bend_rads=(2000,1000), widths=(2,4,6,8,2,4,6,8,2,4,6,8),ext_grp_spacing=512, label="EKST_v2\nMMWG", ec_array_def=edge_coupler_array_ekn_def_centerskip).show()
