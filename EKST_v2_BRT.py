@@ -71,7 +71,7 @@ def ekst_v2_brt_master(
                     port2=ports2[i*len(widths)+x],
                     route_width=ports1[i*len(widths)+x].width,
                     waypoints=((offset,ports1[i*len(widths)+x].dcenter[1]),(offset, ports2[i*len(widths)+x].dcenter[1]),),
-                    bend=ekn_bend(radius=bend_rads[i])
+                    bend=ekn_bend(radius=bend_rads[i], width = widths[x])
                 )
             
             #print(bend_rads[i], widths[x], route.length)
