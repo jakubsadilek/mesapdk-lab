@@ -10,4 +10,5 @@ dependencies = [
     "matplotlib>=3.10.7",
     "scipy>=1.16.3",
     "tidy3d>=2.9.3",
+    "trimesh>=4.10.0",
 ]
