@@ -2,7 +2,7 @@ from __future__ import annotations
 
 __all__ = [
 
-    "straight_heater_offset_wg",
+    "straight_heater_offset_wg_90deg",
 
 ]
 
