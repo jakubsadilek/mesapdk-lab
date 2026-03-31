@@ -105,23 +105,25 @@ def straight_heater_offset_wg_90deg(
         length=waveguide_lenght,
     )
 
-    crnr = gf.get_component(heater_corner, cross_section = xs_heater_wire)
+    crnr = gf.get_component(heater_corner, cross_section = cross_section_heater, radius = cross_section_heater.width)
     crnr_east = c.add_ref(crnr)
+    crnr_west = c.add_ref(crnr)
+    #print(crnr)
     
-    
+        
 
     straight_heater_section = gf.components.straight(
         cross_section=cross_section_heater,
-        length=heater_lenght,
+        length=heater_lenght - 2* cross_section_heater.width,
     )
 
     s_wg = c.add_ref(straight_wg_section).dmovex(-straight_wg_section.dxsize/2)
-
-
+    
     h_loc_offset = ((-straight_heater_section.dxsize/2), (-heater_wg_gap - heater_width/2 - waveguide_width/2))
     h_wg = c.add_ref(straight_heater_section).dmovey(-heater_wg_gap - heater_width/2 - waveguide_width/2).dmovex(-straight_heater_section.dxsize/2)
   
-    
+    crnr_east.connect("e1", h_wg.ports['e1'])
+    crnr_west.connect("e2", h_wg.ports['e2'])
 
     c.add_ports(straight_heater_section.ports)
 
@@ -139,26 +141,29 @@ def straight_heater_offset_wg_90deg(
         # )
 
         if via_stack_offset != None:
-            via_offset_west = (h_loc_offset[0] - via_stack_offset[0] -0*heater_width,  h_loc_offset[1] + via_stack_offset[1])
-            via_offset_east = (-h_loc_offset[0] + via_stack_offset[0] +0*heater_width,  h_loc_offset[1] + via_stack_offset[1])
+            via_offset_west = (crnr_east.ports['e2'].x + via_stack_offset[0],  h_loc_offset[1] + via_stack_offset[1])
+            via_offset_east = (crnr_west.ports['e2'].x - via_stack_offset[0],  h_loc_offset[1] + via_stack_offset[1])
+
+        print(via_offset_east, via_offset_west)
+
 
         via_stack_west = c.add_ref(via_stk)
         via_stack_west.dmove(origin=via_stack_west.dcenter, destination= via_offset_west)
         via_stack_east = c.add_ref(via_stk)
         via_stack_east.dmove(origin=via_stack_east.dcenter, destination= via_offset_east)
 
-        xs = gf.get_cross_section(cross_section_heater_conn, width = via_stack_west.dxsize)
+        
 
         route1 = gf.routing.route_bundle_electrical(component=c,
-                                                    ports1=h_wg.ports['e1'],
+                                                    ports1=crnr_east.ports['e2'],
                                                     ports2=via_stack_west.ports['e2'],
                                                     allow_width_mismatch=True,
-                                                    auto_taper=False,
-                                                    cross_section= xs_heater_wire, 
+                                                    auto_taper=True,
+                                                    cross_section= xs_ekn300_te_IMGREV(layer='M3'), 
                                                     allow_layer_mismatch=True, #start_angles=[180], start_straight_length=waveguide_width,
-                                                    bend=gf.components.wire_corner,
-                                                    radius=2)
-        
+                                                    #bend=gf.components.wire_corner45_straight,
+                                                    #radius=2)
+        )
         # route1 = gf.routing.route_bundle_electrical(component=c,
         #                                             ports1=h_wg.ports['e2'],
         #                                             ports2=via_stack_east.ports['e2'],
@@ -219,7 +224,7 @@ if __name__ == "__main__":
 
     xs_heater = gf.get_cross_section('heater_metal', layer = 'M3', width = 2)
     xs_waveguide = gf.get_cross_section(xs_ekn300_te_IMGREV, width = 2)
-    xs_heater_wire = gf.get_cross_section(xs_ekn300_te_IMGREV, width = 2, width_trench = 1, layer = 'M3', radius = 2, layer_trench = (3,6))
+    xs_heater_wire = gf.partial(xs_ekn300_te_IMGREV, width = 2, width_trench = 1, layer = 'M3', radius = 2, layer_trench = (3,6))
 
     straight_heater_offset_wg_90deg(heater_wg_gap=1, 
                                     heater_lenght=800, 
@@ -227,7 +232,7 @@ if __name__ == "__main__":
                                     cross_section_waveguide=xs_waveguide, 
                                     cross_section_heater_conn=xs_heater_wire, 
                                     cross_section_heater=xs_heater, 
-                                    via_stack_offset=(1,-50)).show()
+                                    via_stack_offset=(0,-50)).show()
 
     #TASK LIST
 
@@ -236,5 +241,3 @@ if __name__ == "__main__":
     # ->>> towards the design
     # 2/ Adjust type of vias and cross-sections so it would make sense - Heater metal, plated M1 and so 
     # 3/ ensure that interconnects to gnd via-stacks would be on similar layers 
-
-    gf.cross_section.heater_metal
