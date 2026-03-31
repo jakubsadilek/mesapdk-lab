@@ -152,15 +152,17 @@ def straight_heater_offset_wg_90deg(
         via_stack_east = c.add_ref(via_stk)
         via_stack_east.dmove(origin=via_stack_east.dcenter, destination= via_offset_east)
 
-        
+        xs_sc1 = gf.get_cross_section(cross_section_heater_conn, width=11)
 
         route1 = gf.routing.route_bundle_electrical(component=c,
                                                     ports1=crnr_east.ports['e2'],
                                                     ports2=via_stack_west.ports['e2'],
                                                     allow_width_mismatch=True,
                                                     auto_taper=True,
-                                                    cross_section= xs_ekn300_te_IMGREV(layer='M3'), 
-                                                    allow_layer_mismatch=True, #start_angles=[180], start_straight_length=waveguide_width,
+                                                    cross_section= xs_sc1, 
+                                                    allow_layer_mismatch=True, 
+                                                    route_width=via_stack_east.xsize,
+                                                    #start_angles=[180], start_straight_length=waveguide_width,
                                                     #bend=gf.components.wire_corner45_straight,
                                                     #radius=2)
         )
