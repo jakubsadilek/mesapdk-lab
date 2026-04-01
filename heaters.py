@@ -179,41 +179,29 @@ def straight_heater_offset_wg_90deg(
 
     #     #via_stack_west.connect('e1', h_wg.ports['e1'], allow_width_mismatch=True, allow_layer_mismatch=True)
 
-    #     # via_stack_west.move(via_stack_west_center)
-    #     # via_stack_east.move(via_stack_east_center)
+        # via_stack_west.move(via_stack_west_center)
+        # via_stack_east.move(via_stack_east_center)
 
-    #     # valid_orientations = {p.orientation for p in via_stk.ports}
-    #     # p1 = via_stack_west.ports.filter(orientation=port_orientation1)
-    #     # p2 = via_stack_east.ports.filter(orientation=port_orientation2)
+        valid_orientations = {p.orientation for p in via_stk.ports}
+        p1 = via_stack_west.ports.filter(orientation=port_orientation1)
+        p2 = via_stack_east.ports.filter(orientation=port_orientation2)
 
-    #     # if not p1:
-    #     #     raise ValueError(
-    #     #         f"No ports for port_orientation1 {port_orientation1} in {valid_orientations}"
-    #     #     )
-    #     # if not p2:
-    #     #     raise ValueError(
-    #     #         f"No ports for port_orientation2 {port_orientation2} in {valid_orientations}"
-    #     #     )
+        if not p1:
+            raise ValueError(
+                f"No ports for port_orientation1 {port_orientation1} in {valid_orientations}"
+            )
+        if not p2:
+            raise ValueError(
+                f"No ports for port_orientation2 {port_orientation2} in {valid_orientations}"
+            )
 
-    #     # c.add_ports(p1, prefix="l_")
-    #     # c.add_ports(p2, prefix="r_")
+# TODO: Fix naming scheme
+        c.add_ports(p1, prefix="E_")
+        c.add_ports(p2, prefix="W_")
 
 
-    #     c.add_ports(s_wg.ports)
+        c.add_ports(s_wg.ports)
 
-    #     # if heater_taper_length:
-    #     #     taper = gf.components.taper(
-    #     #         width1=via_stackw.ports["e1"].width,
-    #     #         width2=heater_width,
-    #     #         length=heater_taper_length,
-    #     #         cross_section=cross_section_heater,
-    #     #         port_names=("e1", "e2"),
-    #     #         port_types=("electrical", "electrical"),
-    #     #     )
-    #     #     taper1 = c << taper
-    #     #     taper2 = c << taper
-    #     #     taper1.connect("e1", via_stack_west.ports["e3"], allow_layer_mismatch=True)
-    #     #     taper2.connect("e1", via_stack_east.ports["e1"], allow_layer_mismatch=True)
 
     c.info["resistance"] = (
         ohms_per_square * heater_width * heater_lenght if ohms_per_square else None
