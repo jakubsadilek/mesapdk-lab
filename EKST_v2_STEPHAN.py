@@ -7,6 +7,7 @@ from ekin_master_die import xs_ekn300_te_IMGREV
 
 from dataclasses import dataclass
 from collections.abc import Sequence
+from gdsfactory.typings import Position
 
 @dataclass(frozen=True, slots=True)
 class HeaterPlacement:
@@ -64,6 +65,8 @@ def stephan_master_serpentine(
         
         heater: gf.typings.ComponentSpec | None = None,
         heater_loc: list[HeaterPlacement] | None = None,
+
+        route_turns_waypoints: tuple[Position,] | None = None,
         
         label_txt: gf.typings.ComponentSpec = label_txt,
         label: str = "STPH_v0\nBRT",
@@ -121,20 +124,43 @@ def stephan_master_serpentine(
 
         ekn_bend=gf.partial(gf.c.bend_euler, cross_section=xs_waveguide)
 
+        waypoint_i = 0
+        next_waypoint = ()
+
+        # obstacle = d.add_ref(gf.c.rectangle(size=(5500, 2500), layer="M3", centered=True)).dmove(origin=(0,0), destination=(-3000,1500))
+        # obstacle2 = d.add_ref(gf.c.rectangle(size=(2500, 1000), layer="M3", centered=True)).dmove(origin=(0,0), destination=(-2500,3000))
+        # obstacle3 = d.add_ref(gf.c.rectangle(size=(2500, 1000), layer="M3", centered=True)).dmove(origin=(0,0), destination=(-2500,0))
+
         for i in range(0, len(hrefs)):
             if i < len(hrefs)-1:
+
+                waypoints = next_waypoint or None
+
                 route = gf.routing.route_bundle(
                 component=d,
                 cross_section=xs_waveguide,
                 port1=hrefs[i].ports['o2'],
                 port2=hrefs[i+1].ports['o1'],
                 #waypoints=(),
-                #waypoints=((2000, ports1[0].y),(ports2[0].x, ports1[0].y),(0, 0), (ports1[0].x, ports2[0].y), (-2000, ports2[0].y)),
+                waypoints=(waypoints,),
+                # waypoints=None,
                 bend=ekn_bend(bend_rad),
                 show_waypoints=True,
                 layer_marker=(20,0),
                 radius=bend_rad,
+                # bboxes=[obstacle.bbox().enlarge(10), obstacle2.bbox(), obstacle3.bbox()],
+                # collision_check_layers=('M3',)
+
                 )
+                next_waypoint = ()
+                try:
+                    if (hrefs[i+1].dy != hrefs[i+2].dy) and route_turns_waypoints != None:
+                        next_waypoint = route_turns_waypoints[waypoint_i]
+                except:
+                    continue
+
+
+
         
         route = gf.routing.route_bundle(
                 component=d,
@@ -256,7 +282,7 @@ if __name__ == "__main__":
 
     heater_locs = generate_heater_array(
         count = 7,
-        initial_loc=(0, -3000),
+        initial_loc=(-1000, -3000),
         step=(1250, 0),
         alternate=True,
     )
@@ -264,7 +290,7 @@ if __name__ == "__main__":
 
     heater_locs += generate_heater_array(
         count = 7,
-        initial_loc=(7500, 0),
+        initial_loc=(6500, 0),
         step=(-1250, 0),
         alternate=True,
         mirror_y=False,
@@ -273,7 +299,7 @@ if __name__ == "__main__":
 
     heater_locs += generate_heater_array(
         count = 6,
-        initial_loc=(0, 3000),
+        initial_loc=(-1000, 3000),
         step=(1250, 0),
         alternate=True,
         mirror_y=True
@@ -295,6 +321,7 @@ if __name__ == "__main__":
     stephan_master_serpentine( ec_array_def=edge_coupler_array_stph_but,
                               heater=heater_def,
                               heater_loc=heater_locs,
+                              route_turns_waypoints=((9000,-1500), (-9000, 1500)),
 
                               logo=logo, logo_loc=(8500,-3650), bend_rad=1500).show()
     #ekst_v2_brt_master(bend_rads=(2000,1000), widths=(2,4,6,8,2,4,6,8,2,4,6,8),ext_grp_spacing=512, label="EKST_v2\nMMWG", ec_array_def=edge_coupler_array_ekn_def_centerskip).show()
