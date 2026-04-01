@@ -21,11 +21,11 @@ port_types_electrical: gf.typings.IOPorts = ("electrical", "electrical")
 def heater_metal_trench(
     width: float = 2.5,
     layer: gf.typings.LayerSpec = "HEATER",
-    layer_trench: gf.typings.LayerSpec = (2,0),
+    layer_trench: gf.typings.LayerSpec = (3,6),
     radius: float | None = None,
     port_names: gf.typings.IOPorts = port_names_electrical,
     port_types: gf.typings.IOPorts = port_types_electrical,
-    width_trench: float = 1.0,
+    width_trench: float = 2.0,
     offset: float = 0.0,
     **kwargs: Any,
 ) -> CrossSection:
@@ -33,17 +33,12 @@ def heater_metal_trench(
 
     sections = (
         gf.Section(
-            width=width_trench,
-            offset=offset + trench_center,
+            width=width_trench *2 + width,
+            offset=0,
             layer=layer_trench,
-            name="trench_top",
+            name="trench_metal",
         ),
-        gf.Section(
-            width=width_trench,
-            offset=offset - trench_center,
-            layer=layer_trench,
-            name="trench_bot",
-        ),
+
     )
 
     """Return Metal Strip cross_section."""
@@ -54,6 +49,7 @@ def heater_metal_trench(
         radius=radius,
         port_names=port_names,
         port_types=port_types,
+        sections=sections,
         **kwargs,
     )
 
@@ -105,7 +101,7 @@ def straight_heater_offset_wg_90deg(
         length=waveguide_lenght,
     )
 
-    crnr = gf.get_component(heater_corner, cross_section = cross_section_heater, radius = cross_section_heater.width)
+    crnr = gf.get_component(heater_corner, cross_section = cross_section_heater, radius = x.width)
     crnr_east = c.add_ref(crnr)
     crnr_west = c.add_ref(crnr)
     #print(crnr)
@@ -114,7 +110,7 @@ def straight_heater_offset_wg_90deg(
 
     straight_heater_section = gf.components.straight(
         cross_section=cross_section_heater,
-        length=heater_lenght - 2* cross_section_heater.width,
+        length=heater_lenght - 2* x.width,
     )
 
     s_wg = c.add_ref(straight_wg_section).dmovex(-straight_wg_section.dxsize/2)
@@ -130,87 +126,94 @@ def straight_heater_offset_wg_90deg(
     if via_stack:
         via_stk = gf.get_component(via_stack)
         dx = via_stk.xsize / 2 + heater_taper_length - heater_lenght/2
-        
-        # via_stack_west_center = (
-        #     straight_heater_section.xmin - dx,
-        #     straight_heater_section.y,
-        # )
-        # via_stack_east_center = (
-        #     straight_heater_section.xmax + dx,
-        #     straight_heater_section.y,
-        # )
 
         if via_stack_offset != None:
-            via_offset_west = (crnr_east.ports['e2'].x + via_stack_offset[0],  h_loc_offset[1] + via_stack_offset[1])
-            via_offset_east = (crnr_west.ports['e2'].x - via_stack_offset[0],  h_loc_offset[1] + via_stack_offset[1])
+            via_offset_west = (crnr_west.ports['e1'].x + via_stack_offset[0],  h_loc_offset[1] + via_stack_offset[1])
+            via_offset_east = (crnr_east.ports['e2'].x - via_stack_offset[0],  h_loc_offset[1] + via_stack_offset[1])
+            via_stack_west = c.add_ref(via_stk)
+            via_stack_west.dmove(origin=via_stack_west.dcenter, destination= via_offset_west)
+            via_stack_east = c.add_ref(via_stk)
+            via_stack_east.dmove(origin=via_stack_east.dcenter, destination= via_offset_east)
 
-        print(via_offset_east, via_offset_west)
+            heater_transition = {
+                "HEATER": gf.partial(
+                    gf.components.taper_electrical,
+                    port_names = ("e1", "e2"),
+                    port_types = ("electrical", "electrical"),
+                    length=10,
+                    cross_section=cross_section_heater_conn,   # replace with your actual heater cross_section
+                    )
+}
+            
+            #tap = c.add_ref(gf.c.taper_cross_section(cross_section1=cross_section_heater_conn, cross_section2=cross_section_heater_conn,width_type='sine'))
+           
+
+            route1 = gf.routing.route_bundle_electrical(component=c,
+                                                        ports1=crnr_east.ports['e2'],
+                                                        ports2=via_stack_east.ports['e2'],
+                                                        allow_width_mismatch=True,
+                                                        auto_taper=True,
+                                                        cross_section= cross_section_heater_conn, 
+                                                        allow_layer_mismatch=True, 
+                                                        #route_width=via_stack_east.xsize,
+                                                        layer_transitions=heater_transition,
+                                                        #auto_taper_taper=gf.partial(gf.c.taper, length = 10, cross_section = cross_section_heater)
+                                                        #start_angles=[180], start_straight_length=waveguide_width,
+                                                        #bend=gf.components.wire_corner45_straight,
+                                                        #radius=2)
+            )
+            route2 = gf.routing.route_bundle_electrical(component=c,
+                                                                    ports1=crnr_west.ports['e1'],
+                                                                    ports2=via_stack_west.ports['e2'],
+                                                                    allow_width_mismatch=True,
+                                                                    auto_taper=True,
+                                                                    cross_section= cross_section_heater_conn, 
+                                                                    allow_layer_mismatch=True, 
+                                                                    #route_width=via_stack_east.xsize,
+                                                                    layer_transitions=heater_transition,
+                                                                    #auto_taper_taper=gf.partial(gf.c.taper, length = 10, cross_section = cross_section_heater)
+                                                                    #start_angles=[180], start_straight_length=waveguide_width,
+                                                                    #bend=gf.components.wire_corner45_straight,
+                                                                    #radius=2)
+            )
+
+    #     #via_stack_west.connect('e1', h_wg.ports['e1'], allow_width_mismatch=True, allow_layer_mismatch=True)
+
+    #     # via_stack_west.move(via_stack_west_center)
+    #     # via_stack_east.move(via_stack_east_center)
+
+    #     # valid_orientations = {p.orientation for p in via_stk.ports}
+    #     # p1 = via_stack_west.ports.filter(orientation=port_orientation1)
+    #     # p2 = via_stack_east.ports.filter(orientation=port_orientation2)
+
+    #     # if not p1:
+    #     #     raise ValueError(
+    #     #         f"No ports for port_orientation1 {port_orientation1} in {valid_orientations}"
+    #     #     )
+    #     # if not p2:
+    #     #     raise ValueError(
+    #     #         f"No ports for port_orientation2 {port_orientation2} in {valid_orientations}"
+    #     #     )
+
+    #     # c.add_ports(p1, prefix="l_")
+    #     # c.add_ports(p2, prefix="r_")
 
 
-        via_stack_west = c.add_ref(via_stk)
-        via_stack_west.dmove(origin=via_stack_west.dcenter, destination= via_offset_west)
-        via_stack_east = c.add_ref(via_stk)
-        via_stack_east.dmove(origin=via_stack_east.dcenter, destination= via_offset_east)
+    #     c.add_ports(s_wg.ports)
 
-        xs_sc1 = gf.get_cross_section(cross_section_heater_conn, width=11)
-
-        route1 = gf.routing.route_bundle_electrical(component=c,
-                                                    ports1=crnr_east.ports['e2'],
-                                                    ports2=via_stack_west.ports['e2'],
-                                                    allow_width_mismatch=True,
-                                                    auto_taper=True,
-                                                    cross_section= xs_sc1, 
-                                                    allow_layer_mismatch=True, 
-                                                    route_width=via_stack_east.xsize,
-                                                    #start_angles=[180], start_straight_length=waveguide_width,
-                                                    #bend=gf.components.wire_corner45_straight,
-                                                    #radius=2)
-        )
-        # route1 = gf.routing.route_bundle_electrical(component=c,
-        #                                             ports1=h_wg.ports['e2'],
-        #                                             ports2=via_stack_east.ports['e2'],
-        #                                             auto_taper=True,
-        #                                             cross_section=xs,
-        #                                             allow_layer_mismatch=True, #start_angles=[180], start_straight_length=waveguide_width,
-        #                                             bend=gf.components.wire_corner45_straight)
-
-        #via_stack_west.connect('e1', h_wg.ports['e1'], allow_width_mismatch=True, allow_layer_mismatch=True)
-
-        # via_stack_west.move(via_stack_west_center)
-        # via_stack_east.move(via_stack_east_center)
-
-        # valid_orientations = {p.orientation for p in via_stk.ports}
-        # p1 = via_stack_west.ports.filter(orientation=port_orientation1)
-        # p2 = via_stack_east.ports.filter(orientation=port_orientation2)
-
-        # if not p1:
-        #     raise ValueError(
-        #         f"No ports for port_orientation1 {port_orientation1} in {valid_orientations}"
-        #     )
-        # if not p2:
-        #     raise ValueError(
-        #         f"No ports for port_orientation2 {port_orientation2} in {valid_orientations}"
-        #     )
-
-        # c.add_ports(p1, prefix="l_")
-        # c.add_ports(p2, prefix="r_")
-
-
-        c.add_ports(s_wg.ports)
-
-        # if heater_taper_length:
-        #     taper = gf.components.taper(
-        #         width1=via_stackw.ports["e1"].width,
-        #         width2=heater_width,
-        #         length=heater_taper_length,
-        #         cross_section=cross_section_heater,
-        #         port_names=("e1", "e2"),
-        #         port_types=("electrical", "electrical"),
-        #     )
-        #     taper1 = c << taper
-        #     taper2 = c << taper
-        #     taper1.connect("e1", via_stack_west.ports["e3"], allow_layer_mismatch=True)
-        #     taper2.connect("e1", via_stack_east.ports["e1"], allow_layer_mismatch=True)
+    #     # if heater_taper_length:
+    #     #     taper = gf.components.taper(
+    #     #         width1=via_stackw.ports["e1"].width,
+    #     #         width2=heater_width,
+    #     #         length=heater_taper_length,
+    #     #         cross_section=cross_section_heater,
+    #     #         port_names=("e1", "e2"),
+    #     #         port_types=("electrical", "electrical"),
+    #     #     )
+    #     #     taper1 = c << taper
+    #     #     taper2 = c << taper
+    #     #     taper1.connect("e1", via_stack_west.ports["e3"], allow_layer_mismatch=True)
+    #     #     taper2.connect("e1", via_stack_east.ports["e1"], allow_layer_mismatch=True)
 
     c.info["resistance"] = (
         ohms_per_square * heater_width * heater_lenght if ohms_per_square else None
@@ -224,16 +227,17 @@ def straight_heater_offset_wg_90deg(
 if __name__ == "__main__":
     gf.gpdk.PDK.activate()
 
-    xs_heater = gf.get_cross_section('heater_metal', layer = 'M3', width = 2)
     xs_waveguide = gf.get_cross_section(xs_ekn300_te_IMGREV, width = 2)
-    xs_heater_wire = gf.partial(xs_ekn300_te_IMGREV, width = 2, width_trench = 1, layer = 'M3', radius = 2, layer_trench = (3,6))
+
+    via_stack_heater = gf.partial(gf.c.via_stack, size=(25,25), layers=('M1', 'DEEP_ETCH','HEATER'), correct_size=True, layer_offsets=(0,2,0))
 
     straight_heater_offset_wg_90deg(heater_wg_gap=1, 
                                     heater_lenght=800, 
                                     waveguide_lenght=1000, 
                                     cross_section_waveguide=xs_waveguide, 
-                                    cross_section_heater_conn=xs_heater_wire, 
-                                    cross_section_heater=xs_heater, 
+                                    cross_section_heater_conn=heater_metal_trench, 
+                                    cross_section_heater= 'heater_metal',
+                                    via_stack=via_stack_heater,
                                     via_stack_offset=(0,-50)).show()
 
     #TASK LIST
