@@ -1,10 +1,58 @@
 import gdsfactory as gf
 
 from ekin_master_die import ekn_master_die_ds, edge_coupler_array_stph_but #,edge_coupler_array_stph_tap
-from test_crosssections import xs_ekn300_te_IMGREV
+from heaters import heater_metal_trench
+from heaters import straight_heater_offset_wg_90deg
+from ekin_master_die import xs_ekn300_te_IMGREV
+
+from dataclasses import dataclass
+from collections.abc import Sequence
+
+@dataclass(frozen=True, slots=True)
+class HeaterPlacement:
+    id: str
+    position: tuple[float, float]
+    rotation: float = 0.0
+    mirror_y: bool = False
+
 
 label_txt = gf.partial(gf.components.text_rectangular, layer = "GE")
 
+
+def generate_heater_array(
+    count: int,
+    initial_loc: tuple[float, float],
+    step: tuple[float, float],
+    *,
+    base_id: str = "H",
+    rotation: float = 0.0,
+    mirror_y: bool = False,   # 👉 výchozí stav
+    alternate: bool = False,
+) -> list[HeaterPlacement]:
+    if count < 1:
+        return []
+
+    x0, y0 = initial_loc
+    sx, sy = step
+
+    placements: list[HeaterPlacement] = []
+
+    for i in range(count):
+        if alternate:
+            current_mirror = mirror_y if i % 2 == 0 else not mirror_y
+        else:
+            current_mirror = mirror_y
+
+        placements.append(
+            HeaterPlacement(
+                id=f"{base_id}{i:02d}",
+                position=(x0 + i * sx, y0 + i * sy),
+                rotation=rotation,
+                mirror_y=current_mirror,
+            )
+        )
+
+    return placements
 
 @gf.cell_with_module_name
 def stephan_master_serpentine(
@@ -13,9 +61,13 @@ def stephan_master_serpentine(
         bend_rad: float = 1000,
         cross_section:gf.typings.CrossSectionSpec = xs_ekn300_te_IMGREV,
         ec_array_def: gf.typings.ComponentSpec = edge_coupler_array_stph_but,
+        
+        heater: gf.typings.ComponentSpec | None = None,
+        heater_loc: list[HeaterPlacement] | None = None,
+        
         label_txt: gf.typings.ComponentSpec = label_txt,
         label: str = "STPH_v0\nBRT",
-        chip_id_label: str = "EKAJ_v0 BRT\nW00_I00\nX20.0 Y20.0",
+        chip_id_label: str = "ESTPH_v0 SRP\nW00_I00\nX20.0 Y20.0",
         logo: gf.typings.ComponentSpec = None,
         logo_loc: gf.typings.Position = None,        
 ) -> gf.Component:
@@ -50,60 +102,120 @@ def stephan_master_serpentine(
     ports1=md.ports.filter(regex=r'^W01_(?!AL)\d+o2$')
     ports2=md.ports.filter(regex=r'^E01_(?!AL)\d+o2$')
 
+    xs_waveguide = gf.get_cross_section(cross_section, width=width)
+
+
+    hrefs = []
+
+    if heater is not None:
+        heater_comp = gf.get_component(heater, cross_section_waveguide = xs_waveguide)
+        for hp in heater_loc or []:
+            href = d.add_ref(heater_comp)
+            if hp.mirror_y:
+                href.mirror_y()
+            if hp.rotation:
+                href.drotate(hp.rotation)
+            href.dmove(origin=(0, 0), destination=hp.position)
+            hrefs.append(href)
+
+
+        ekn_bend=gf.partial(gf.c.bend_euler, cross_section=xs_waveguide)
+
+        for i in range(0, len(hrefs)):
+            if i < len(hrefs)-1:
+                route = gf.routing.route_bundle(
+                component=d,
+                cross_section=xs_waveguide,
+                port1=hrefs[i].ports['o2'],
+                port2=hrefs[i+1].ports['o1'],
+                #waypoints=(),
+                #waypoints=((2000, ports1[0].y),(ports2[0].x, ports1[0].y),(0, 0), (ports1[0].x, ports2[0].y), (-2000, ports2[0].y)),
+                bend=ekn_bend(bend_rad),
+                show_waypoints=True,
+                layer_marker=(20,0),
+                radius=bend_rad,
+                )
+        
+        route = gf.routing.route_bundle(
+                component=d,
+                cross_section=xs_waveguide,
+                port1=hrefs[0].ports['o1'],
+                port2=ports1[0],
+                #waypoints=(),
+                #waypoints=((2000, ports1[0].y),(ports2[0].x, ports1[0].y),(0, 0), (ports1[0].x, ports2[0].y), (-2000, ports2[0].y)),
+                bend=ekn_bend(bend_rad),
+                show_waypoints=True,
+                layer_marker=(20,0),
+                radius=bend_rad,
+                )
+
+        route = gf.routing.route_bundle(
+                component=d,
+                cross_section=xs_waveguide,
+                port1=hrefs[-1].ports['o2'],
+                port2=ports2[0],
+                #waypoints=(),
+                #waypoints=((2000, ports1[0].y),(ports2[0].x, ports1[0].y),(0, 0), (ports1[0].x, ports2[0].y), (-2000, ports2[0].y)),
+                bend=ekn_bend(bend_rad),
+                show_waypoints=True,
+                layer_marker=(20,0),
+                radius=bend_rad,
+                )
+
     #print(ports1)
     
-    xs_local = gf.get_cross_section(cross_section=cross_section, width = width)
+#     xs_local = gf.get_cross_section(cross_section=cross_section, width = width)
 
-    ekn_bend = gf.partial(gf.components.bend_euler, radius = bend_rad, cross_section = cross_section, width = width)
+#     ekn_bend = gf.partial(gf.components.bend_euler, radius = bend_rad, cross_section = cross_section, width = width)
 
 
-    #ekn_bend=gf.partial(gf.c.bend_euler, cross_section=xs_ekn300_te_IMGREV)
+#     #ekn_bend=gf.partial(gf.c.bend_euler, cross_section=xs_ekn300_te_IMGREV)
 
-    routes = []
+#     routes = []
 
-    route = gf.routing.route_bundle(
-            component=d,
-            cross_section=cross_section,
-            port1=ports2[0],
-            port2=ports1[0],
-            route_width=ports1[0].width,
-            steps=[{"x": ports1[0].x + bend_rad  , "y": 0}, {"x":ports2[0].x - bend_rad, "y":0}],
-            start_straight_length=15000,
-            #waypoints=(),
-            #waypoints=((2000, ports1[0].y),(ports2[0].x, ports1[0].y),(0, 0), (ports1[0].x, ports2[0].y), (-2000, ports2[0].y)),
-            bend=ekn_bend(bend_rad),
-            show_waypoints=True,
-            layer_marker=(20,0),
-            radius=bend_rad,
-        )
+#     route = gf.routing.route_bundle(
+#             component=d,
+#             cross_section=cross_section,
+#             port1=ports2[0],
+#             port2=ports1[0],
+#             route_width=ports1[0].width,
+#             steps=[{"x": ports1[0].x + bend_rad  , "y": 0}, {"x":ports2[0].x - bend_rad, "y":0}],
+#             start_straight_length=15000,
+#             #waypoints=(),
+#             #waypoints=((2000, ports1[0].y),(ports2[0].x, ports1[0].y),(0, 0), (ports1[0].x, ports2[0].y), (-2000, ports2[0].y)),
+#             bend=ekn_bend(bend_rad),
+#             show_waypoints=True,
+#             layer_marker=(20,0),
+#             radius=bend_rad,
+#         )
     
-    #print(bend_rads[i], widths[x], route.length)
+#     #print(bend_rads[i], widths[x], route.length)
 
-    # if label_txt != None:
-    #     txt = d.add_ref(label_txt(text="W{:.2f}um L{:.3f}mm".format(route.start_port.dwidth, route.length/1e6)))       #in mm
-    #     txt.dmove(origin=(0,0), destination=(route.start_port.trans.disp.x/1000 + lbl_offset[0] - 850, route.start_port.trans.disp.y/1000 + lbl_offset[1]))
+#     # if label_txt != None:
+#     #     txt = d.add_ref(label_txt(text="W{:.2f}um L{:.3f}mm".format(route.start_port.dwidth, route.length/1e6)))       #in mm
+#     #     txt.dmove(origin=(0,0), destination=(route.start_port.trans.disp.x/1000 + lbl_offset[0] - 850, route.start_port.trans.disp.y/1000 + lbl_offset[1]))
 
-    # routes.append(route)
+#     # routes.append(route)
 
-#TODO: This is plain hack ... if there would be odd number of al. loops it would fall apart
-    for arr in md.cell.info['fiber_arrays']:
-         for loop in arr["fa_alignment_port_names"]:
-            al_name = (arr["fa_alignment_port_names"][loop])
+# #TODO: This is plain hack ... if there would be odd number of al. loops it would fall apart
+#     for arr in md.cell.info['fiber_arrays']:
+#          for loop in arr["fa_alignment_port_names"]:
+#             al_name = (arr["fa_alignment_port_names"][loop])
 
-            if int(loop) % 2 > 0:
-                rex1 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[0])
-                rex0 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[1])
-            else:
-                rex0 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[0])
-                rex1 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[1])
-            gf.routing.route_single(
-                component=d, 
-                port1= md.cell.ports.filter(regex=rex0)[0],
-                port2= md.cell.ports.filter(regex=rex1)[0],
-                cross_section=cross_section,
-                route_width=md.cell.ports.filter(regex=rex0)[0].width,
-                #separation= 127
-                                        )
+#             if int(loop) % 2 > 0:
+#                 rex1 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[0])
+#                 rex0 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[1])
+#             else:
+#                 rex0 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[0])
+#                 rex1 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[1])
+#             gf.routing.route_single(
+#                 component=d, 
+#                 port1= md.cell.ports.filter(regex=rex0)[0],
+#                 port2= md.cell.ports.filter(regex=rex1)[0],
+#                 cross_section=cross_section,
+#                 route_width=md.cell.ports.filter(regex=rex0)[0].width,
+#                 #separation= 127
+                                        # )
     # -------------------------------------------------------------------------
     # Add the Chip name tag
     # -------------------------------------------------------------------------
@@ -139,7 +251,50 @@ if __name__ == "__main__":
             resolution=0.08,         # smaller -> smoother curves
             center=True,
         )
+    
+    via_stack_heater = gf.partial(gf.c.via_stack, size=(25,25), layers=('M1', 'DEEP_ETCH','HEATER'), correct_size=True, layer_offsets=(0,2,0))
+
+    heater_locs = generate_heater_array(
+        count = 7,
+        initial_loc=(0, -3000),
+        step=(1250, 0),
+        alternate=True,
+    )
+    print(heater_locs)
+
+    heater_locs += generate_heater_array(
+        count = 7,
+        initial_loc=(7500, 0),
+        step=(-1250, 0),
+        alternate=True,
+        mirror_y=False,
+        rotation=180,
+    )
+
+    heater_locs += generate_heater_array(
+        count = 6,
+        initial_loc=(0, 3000),
+        step=(1250, 0),
+        alternate=True,
+        mirror_y=True
+    )
+
+    heater_def = gf.partial(
+        straight_heater_offset_wg_90deg,
+        heater_wg_gap=1, 
+        heater_lenght=1000, 
+        waveguide_lenght=1000, 
+        cross_section_waveguide=xs_ekn300_te_IMGREV, 
+        cross_section_heater_conn=heater_metal_trench, 
+        cross_section_heater= 'heater_metal',
+        via_stack=via_stack_heater,
+        via_stack_offset=(0,-50)
+    )
 
     #ekst_v2_brt_master(ext_grp_spacing=127).show()
-    stephan_master_serpentine( ec_array_def=edge_coupler_array_stph_but, logo=logo, logo_loc=(8500,-3650), bend_rad=1500).show()
+    stephan_master_serpentine( ec_array_def=edge_coupler_array_stph_but,
+                              heater=heater_def,
+                              heater_loc=heater_locs,
+
+                              logo=logo, logo_loc=(8500,-3650), bend_rad=1500).show()
     #ekst_v2_brt_master(bend_rads=(2000,1000), widths=(2,4,6,8,2,4,6,8,2,4,6,8),ext_grp_spacing=512, label="EKST_v2\nMMWG", ec_array_def=edge_coupler_array_ekn_def_centerskip).show()

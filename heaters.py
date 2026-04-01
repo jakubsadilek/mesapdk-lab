@@ -72,6 +72,7 @@ def straight_heater_offset_wg_90deg(
     port_orientation2: int | None = None,
     heater_taper_length: float = 5.0,
     ohms_per_square: float | None = None,
+    mirror_y: bool = False,
 ) -> Component:
     """Returns a thermal phase shifter that has properly fixed electrical connectivity to extract a suitable electrical netlist and models.
 
@@ -203,6 +204,9 @@ def straight_heater_offset_wg_90deg(
         c.add_ports(s_wg.ports)
 
 
+    if mirror_y:
+        c.mirror_y() 
+
     c.info["resistance"] = (
         ohms_per_square * heater_width * heater_lenght if ohms_per_square else None
     )
@@ -226,7 +230,8 @@ if __name__ == "__main__":
                                     cross_section_heater_conn=heater_metal_trench, 
                                     cross_section_heater= 'heater_metal',
                                     via_stack=via_stack_heater,
-                                    via_stack_offset=(0,-50)).show()
+                                    via_stack_offset=(0,-50),
+                                    mirror_y=True).show()
 
     #TASK LIST
 
