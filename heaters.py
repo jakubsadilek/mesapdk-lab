@@ -148,6 +148,8 @@ def straight_heater_offset_wg_90deg(
     via_stack_offset: Position | None = (0, -20),
     via_stack_offset_west: Position | None = None,
     via_stack_offset_east: Position | None = None,
+    via_stack_port_west: str = "e2",
+    via_stack_port_east: str = "e2",
     port_orientation1: int | None = None,
     port_orientation2: int | None = None,
     heater_taper_length: float = 5.0,
@@ -194,6 +196,10 @@ def straight_heater_offset_wg_90deg(
         Placement offset for the west via stack. Falls back to ``via_stack_offset``.
     via_stack_offset_east:
         Placement offset for the east via stack. Falls back to ``via_stack_offset``.
+    via_stack_port_west:
+        Port name on the west via stack used for heater routing. Defaults to ``"e2"``.
+    via_stack_port_east:
+        Port name on the east via stack used for heater routing. Defaults to ``"e2"``.
     port_orientation1:
         Exported port orientation filter for the west via stack. ``None`` exports all
         available ports.
@@ -276,10 +282,16 @@ def straight_heater_offset_wg_90deg(
                 ),
             )
 
+        if via_stack_port_west not in west_ref.ports:
+            raise ValueError(
+                f"Port {via_stack_port_west!r} not found in via_stack_west ports: "
+                f"{list(west_ref.ports.keys())}"
+            )
+
         gf.routing.route_bundle_electrical(
             component=c,
             ports1=[corner_west.ports["e1"]],
-            ports2=[west_ref.ports["e2"]],
+            ports2=[west_ref.ports[via_stack_port_west]],
             allow_width_mismatch=True,
             allow_layer_mismatch=True,
             auto_taper=True,
@@ -301,10 +313,16 @@ def straight_heater_offset_wg_90deg(
                 ),
             )
 
+        if via_stack_port_east not in east_ref.ports:
+            raise ValueError(
+                f"Port {via_stack_port_east!r} not found in via_stack_east ports: "
+                f"{list(east_ref.ports.keys())}"
+            )
+
         gf.routing.route_bundle_electrical(
             component=c,
             ports1=[corner_east.ports["e2"]],
-            ports2=[east_ref.ports["e2"]],
+            ports2=[east_ref.ports[via_stack_port_east]],
             allow_width_mismatch=True,
             allow_layer_mismatch=True,
             auto_taper=True,
