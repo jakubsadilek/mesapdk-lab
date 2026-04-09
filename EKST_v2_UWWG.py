@@ -9,7 +9,7 @@ label_txt = gf.partial(gf.components.text_rectangular, layer = "GE")
 @gf.cell_with_module_name
 def ekst_v2_uwwg_master(
         master_die: gf.typings.ComponentSpec = ekn_master_die_straight,
-        widths: tuple = (72, 72,72,72,72,72,72,72,72,72,72,72,72,72), 
+        widths: tuple = (50, 60,70,80,50,60,70,80,50,60,70,80,50,60), 
         bend_rads: tuple = None,
         cross_section:gf.typings.CrossSectionSpec = xs_ekn300_te_IMGREV,
         ec_array_def: gf.typings.ComponentSpec = edge_coupler_array_ekn_def,
@@ -23,8 +23,8 @@ def ekst_v2_uwwg_master(
     
     d = gf.Component()
 
-    eca_w1 = ec_array_def(widths = widths, nc_ports = [ 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28 ], text_offset = (0,100))
-    eca_e1 = ec_array_def(widths = widths, nc_ports = [ 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28 ], text_offset = (0,100), axis_reflection = True)
+    eca_w1 = ec_array_def(widths = widths, nc_ports = [ 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28 ], text_offset = (0,75))
+    eca_e1 = ec_array_def(widths = widths, nc_ports = [ 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28 ], text_offset = (0,75), axis_reflection = True)
 
     md = d.add_ref(master_die(
         fiber_arrays_by_side={
@@ -79,7 +79,7 @@ def ekst_v2_uwwg_master(
 
         if label_txt != None:
             txt = d.add_ref(label_txt(text="W{:.2f}um L{:.3f}mm".format(route.start_port.dwidth, route.length/1e6)))       #in mm
-            txt.dmove(origin=(0,0), destination=(route.start_port.trans.disp.x/1000 + lbl_offset[0] - 850, route.start_port.trans.disp.y/1000 + lbl_offset[1]))
+            txt.dmove(origin=(0,0), destination=(route.start_port.trans.disp.x/1000 + lbl_offset[0] - 850, route.start_port.trans.disp.y/1000 + lbl_offset[1]+50))
 
         routes.append(route)
 
@@ -139,6 +139,9 @@ if __name__ == "__main__":
         )
 
     #ekst_v2_brt_master(ext_grp_spacing=127).show()
-    ekst_v2_uwwg_master(ext_grp_spacing=127, ec_array_def=edge_coupler_array_ekn_def_butt, logo=logo, logo_loc=(0,-3000)).show()
+    ekst_v2_uwwg_master(ext_grp_spacing=127, 
+                        ec_array_def=edge_coupler_array_ekn_def_butt, 
+                        logo=logo, 
+                        logo_loc=(0,-3000)).plot()
     # ekst_v2_uwwg_master(bend_rads=(2000,1000), widths=(2,4,6,8,2,4,6,8,2,4,6,8),ext_grp_spacing=512, label="EKST_v2\nMMWG", ec_array_def=edge_coupler_array_ekn_def_centerskip).show()
 

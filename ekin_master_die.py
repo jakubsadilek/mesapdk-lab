@@ -43,6 +43,7 @@ edge_coupler_array_ekn_def_butt = gf.partial(edge_coupler_array,
         axis_reflection=False, 
         widths=(0.75,1,1.25,1.5), 
         text = label_txt    )
+        
 
 edge_coupler_array_ekn_def_butt_3loops = gf.partial(edge_coupler_array,
         edge_coupler=ekn_buttec,
