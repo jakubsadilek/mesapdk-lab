@@ -25,7 +25,7 @@ class LAYER(LayerMap):
     M1    = (41, 0)  
     M2    = (42, 0)
     M3    = (43, 0)
-    HEATER  = (47, 0)
+    MH  = (47, 0)
 
     VIA0    = (50, 0)
     VIA1    = (51, 0)  
@@ -62,8 +62,8 @@ class LAYER(LayerMap):
     LABEL_LOGO = (100, 0)
 
     DRC_MARKER = (300, 0)
-    ERROR = (310, 0)
-    DEV_REC = (330, 0)
+    ERROR = (500, 0)
+    DEV_REC = (400, 0)
 
 
 # 3) vlastní layer views
@@ -83,7 +83,7 @@ if base_pdk.layer_stack is not None:
     layer_stack_dict.update(base_pdk.layer_stack.layers)
 
 layer_stack_dict["heater"] = LayerLevel(
-    layer=LAYER.HEATER,
+    layer=LAYER.MH,
     thickness=0.13,
     zmin=1.2,
     material="Pt",
