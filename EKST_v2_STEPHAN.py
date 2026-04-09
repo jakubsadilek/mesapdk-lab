@@ -1,7 +1,7 @@
 import gdsfactory as gf
 
 from ekin_master_die import ekn_master_die_ds, edge_coupler_array_stph_but #,edge_coupler_array_stph_tap
-from heaters import heater_metal_trench
+from heaters import xs_heater_metal_trench
 from heaters import straight_heater_offset_wg_90deg
 from ekin_master_die import xs_ekn300_te_IMGREV
 
@@ -338,7 +338,7 @@ if __name__ == "__main__":
         heater_lenght=1000, 
         waveguide_lenght=1000, 
         cross_section_waveguide=xs_ekn300_te_IMGREV, 
-        cross_section_heater_conn=heater_metal_trench, 
+        cross_section_heater_conn=xs_heater_metal_trench, 
         cross_section_heater= 'heater_metal',
         via_stack=via_stack_heater,
         via_stack_offset=(0,-50)
@@ -349,6 +349,5 @@ if __name__ == "__main__":
                               heater=heater_def,
                               heater_loc=heater_locs,
                               route_turns_waypoints=((8600,-1625), (-9000, 1625)),
-
-                              logo=logo, logo_loc=(8500,-3650), bend_rad=1500).show()
+                              logo=None, label = None, logo_loc=(8500,-3650), bend_rad=1500, chip_id_label=None).show()
     #ekst_v2_brt_master(bend_rads=(2000,1000), widths=(2,4,6,8,2,4,6,8,2,4,6,8),ext_grp_spacing=512, label="EKST_v2\nMMWG", ec_array_def=edge_coupler_array_ekn_def_centerskip).show()

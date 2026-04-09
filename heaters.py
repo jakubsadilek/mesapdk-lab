@@ -8,7 +8,7 @@ from gdsfactory.cross_section import CrossSection
 from gdsfactory.typings import ComponentSpec, CrossSectionSpec, Position
 
 __all__ = [
-    "heater_metal_trench",
+    "xs_heater_metal_trench",
     "straight_heater_offset_wg_90deg",
 ]
 
@@ -18,7 +18,7 @@ port_types_electrical: gf.typings.IOPorts = ("electrical", "electrical")
 
 
 @gf.xsection
-def heater_metal_trench(
+def xs_heater_metal_trench(
     width: float = 2.5,
     layer: gf.typings.LayerSpec = "HEATER",
     layer_trench: gf.typings.LayerSpec = (3, 6),
