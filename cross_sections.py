@@ -28,7 +28,7 @@ def xs_ekn300_te_IMGREV(
     radius_min: float = MINRAD,
     width_slab: float = 6,
     width_trench: float = 15,
-    layer_trench: gf.typings.LayerSpec = "DEEP_ETCH",
+    layer_trench: gf.typings.LayerSpec = "SIN_ETCH",
     **kwargs,
 ) -> gf.CrossSection:
     trench_center = (width + width_trench) / 2
@@ -61,8 +61,8 @@ def xs_ekn300_te_IMGREV(
 @gf.xsection
 def xs_heater_metal_trench(
     width: float = 2.5,
-    layer: gf.typings.LayerSpec = "HEATER",
-    layer_trench: gf.typings.LayerSpec = (3, 6),
+    layer: gf.typings.LayerSpec = "MH",
+    layer_trench: gf.typings.LayerSpec = "SIN_ETCH",
     radius: float | None = None,
     port_names: gf.typings.IOPorts = port_names_electrical,
     port_types: gf.typings.IOPorts = port_types_electrical,

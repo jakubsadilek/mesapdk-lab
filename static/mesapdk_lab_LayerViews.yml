@@ -30,20 +30,28 @@ LayerViews:
     color: "grey"
 
   DICING:
-    layer: [65, 0]
+    layer: [90, 0]
     layer_in_name: true
     hatch_pattern: coarsely dotted
     width: 1
     color: "#cc0000"
+
+  DICING_CL:
+    layer: [90, 500]
+    layer_in_name: true
+    hatch_pattern: coarsely dotted
+    width: 1
+    color: "#cc0000"
+
   DRC_EXCLUDE:
-    layer: [67, 0]
+    layer: [601, 0]
     layer_in_name: true
     hatch_pattern: hollow
     visible: false
     width: 2
     color: "grey"
   FLOORPLAN:
-    layer: [64, 0]
+    layer: [98, 0]
     layer_in_name: true
     hatch_pattern: hollow
     color: "pink"
@@ -375,13 +383,30 @@ LayerViews:
         width: 1
         color: "#805000"
         hatch_pattern: solid
-        
-  DRC_MARKER:
-    layer: [300, 0]
-    layer_in_name: true
-    transparent: true
-    width: 3
-    color: "red"
+
+  MARKERS:
+    group_members:
+
+      DRC_MARKER:
+        layer: [600, 0]
+        layer_in_name: true
+        transparent: true
+        width: 3
+        color: "red"
+
+      NAV_MARKER:
+        layer: [150, 0]
+        layer_in_name: true
+        transparent: true
+        width: 3
+        color: "red"
+
+      INST_MARKER:
+        layer: [151, 0]
+        layer_in_name: true
+        transparent: true
+        width: 3
+        color: "red"
 
 
 

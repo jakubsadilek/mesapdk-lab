@@ -17,7 +17,7 @@ class HeaterPlacement:
     mirror_y: bool = False
 
 
-label_txt = gf.partial(gf.components.text_rectangular, layer = "GE")
+label_txt = gf.partial(gf.components.text_rectangular, layer = "LABEL_SIN")
 
 
 def generate_heater_array(

@@ -17,62 +17,62 @@ port_names_electrical: gf.typings.IOPorts = ("e1", "e2")
 port_types_electrical: gf.typings.IOPorts = ("electrical", "electrical")
 
 
-@gf.xsection
-def xs_heater_metal_trench(
-    width: float = 2.5,
-    layer: gf.typings.LayerSpec = "HEATER",
-    layer_trench: gf.typings.LayerSpec = (3, 6),
-    radius: float | None = None,
-    port_names: gf.typings.IOPorts = port_names_electrical,
-    port_types: gf.typings.IOPorts = port_types_electrical,
-    width_trench: float = 2.0,
-    offset: float = 0.0,
-    **kwargs: Any,
-) -> CrossSection:
-    """Return a heater metal cross-section with a surrounding trench section.
+# @gf.xsection
+# def xs_heater_metal_trench(
+#     width: float = 2.5,
+#     layer: gf.typings.LayerSpec = "MH",
+#     layer_trench: gf.typings.LayerSpec = "SIN_ETCH",
+#     radius: float | None = None,
+#     port_names: gf.typings.IOPorts = port_names_electrical,
+#     port_types: gf.typings.IOPorts = port_types_electrical,
+#     width_trench: float = 2.0,
+#     offset: float = 0.0,
+#     **kwargs: Any,
+# ) -> CrossSection:
+#     """Return a heater metal cross-section with a surrounding trench section.
 
-    Parameters
-    ----------
-    width:
-        Width of the heater conductor.
-    layer:
-        Layer used for the heater conductor.
-    layer_trench:
-        Layer used for the trench surrounding the heater.
-    radius:
-        Default bend radius for this cross-section. If omitted, ``width`` is used.
-    port_names:
-        Port names for the two electrical ports.
-    port_types:
-        Port types for the electrical ports.
-    width_trench:
-        Lateral trench width added on each side of the heater.
-    offset:
-        Center offset of the main section. Kept for API compatibility.
-    **kwargs:
-        Forwarded to :func:`gf.cross_section.cross_section`.
-    """
-    radius = radius or width
+#     Parameters
+#     ----------
+#     width:
+#         Width of the heater conductor.
+#     layer:
+#         Layer used for the heater conductor.
+#     layer_trench:
+#         Layer used for the trench surrounding the heater.
+#     radius:
+#         Default bend radius for this cross-section. If omitted, ``width`` is used.
+#     port_names:
+#         Port names for the two electrical ports.
+#     port_types:
+#         Port types for the electrical ports.
+#     width_trench:
+#         Lateral trench width added on each side of the heater.
+#     offset:
+#         Center offset of the main section. Kept for API compatibility.
+#     **kwargs:
+#         Forwarded to :func:`gf.cross_section.cross_section`.
+#     """
+#     radius = radius or width
 
-    sections = (
-        gf.Section(
-            width=width + 2 * width_trench,
-            offset=offset,
-            layer=layer_trench,
-            name="trench_metal",
-        ),
-    )
+#     sections = (
+#         gf.Section(
+#             width=width + 2 * width_trench,
+#             offset=offset,
+#             layer=layer_trench,
+#             name="trench_metal",
+#         ),
+#     )
 
-    return gf.cross_section.cross_section(
-        width=width,
-        offset=offset,
-        layer=layer,
-        radius=radius,
-        port_names=port_names,
-        port_types=port_types,
-        sections=sections,
-        **kwargs,
-    )
+#     return gf.cross_section.cross_section(
+#         width=width,
+#         offset=offset,
+#         layer=layer,
+#         radius=radius,
+#         port_names=port_names,
+#         port_types=port_types,
+#         sections=sections,
+#         **kwargs,
+#     )
 
 
 def _get_ports_for_orientation(
@@ -240,7 +240,7 @@ def straight_heater_offset_wg_90deg(
     wg_ref.dmovex(-straight_wg.dxsize / 2)
 
     corner = gf.get_component(
-        heater_corner,
+        component=heater_corner,
         cross_section=cross_section_heater,
         radius=heater_width,
     )

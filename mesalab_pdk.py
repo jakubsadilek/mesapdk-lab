@@ -46,6 +46,9 @@ class LAYER(LayerMap):
     WAFER       =  (99, 0)
     KEEPOUT_WAFER = (99, 500)
 
+    MARKER_NAV = (150, 0)
+    MARKER_INST = (151, 0)
+
     NOTILE_SIN  = (210, 0)
     NOTILE_M0  = (200, 0)
     NOTILE_M1  = (201, 0)
@@ -57,11 +60,13 @@ class LAYER(LayerMap):
     KEEPOUT_M2    = (222, 0)
     KEEPOUT_M3    = (223, 0)
     KEEPOUT_SIN   = (230, 0)
-    KEEPOUT_DICING = (240, 0)      
+    KEEPOUT_DICING = (240, 0)
+    KEEPOUT_GLUE  = (250, 0)      
 
     LABEL_LOGO = (100, 0)
 
-    DRC_MARKER = (300, 0)
+    DRC_MARKER = (600, 0)
+    DRC_EXCLUDE = (601, 0)
     ERROR = (500, 0)
     DEV_REC = (400, 0)
 
