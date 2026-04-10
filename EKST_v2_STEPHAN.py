@@ -306,7 +306,15 @@ if __name__ == "__main__":
             center=True,
         )
     
-    via_stack_heater = gf.partial(gf.c.via_stack, size=(25,25), layers=('M1', 'DEEP_ETCH','MH'), correct_size=True, layer_offsets=(0,2,0))
+    via_m1 = gf.c.via1(
+        size = (5, 5),
+        enclosure = 7.5,
+        layer = "VIA0",
+        pitch= 7.5,
+    )
+
+    via_stack_heater = gf.partial(gf.c.via_stack, size=(50,50), vias=(None, None, via_m1), layers=('M1', 'SIN_ETCH','MH'), correct_size=True, layer_offsets=(0,2,0))
+    via_stack_gnd = gf.partial(gf.c.via_stack, vias = (None, None), size=(50,50), layers=('SIN_ETCH','MH'), correct_size=True, layer_offsets=(2,0))
 
     heater_locs = generate_heater_array(
         count = 7,
@@ -335,20 +343,34 @@ if __name__ == "__main__":
 
     heater_def = gf.partial(
         straight_heater_offset_wg_90deg,
-        heater_wg_gap=1, 
+        via_stack_offset_west = (0,-50),
+        via_stack_offset_east = (0,-50),
+        heater_wg_gap=1,
+        heater_taper_length = 10, 
         heater_lenght=1000, 
         waveguide_lenght=1000, 
         cross_section_waveguide=xs_ekn300_te_IMGREV, 
         cross_section_heater_conn='xs_heater_metal_trench', 
         cross_section_heater= 'xs_heater_metal',
-        via_stack=via_stack_heater,
-        via_stack_offset=(0,-50)
+        via_stack_east = via_stack_gnd,
+        via_stack_west =via_stack_heater,
+
     )
+
+
+
 
     #ekst_v2_brt_master(ext_grp_spacing=127).show()
     stephan_master_serpentine( ec_array_def=edge_coupler_array_stph_but,
                               heater=heater_def,
                               heater_loc=heater_locs,
                               route_turns_waypoints=((8600,-1625), (-9000, 1625)),
-                              logo=None, label = None, logo_loc=(8500,-3650), bend_rad=1500, chip_id_label=None).show()
-    #ekst_v2_brt_master(bend_rads=(2000,1000), widths=(2,4,6,8,2,4,6,8,2,4,6,8),ext_grp_spacing=512, label="EKST_v2\nMMWG", ec_array_def=edge_coupler_array_ekn_def_centerskip).show()
+                              logo=None, label = None, logo_loc=(8500,-3650), bend_rad=1575, chip_id_label=None).show()
+
+    #TASKs:
+
+    # 1: via_stacks should reflect reality - east one should be MH only, maybe MH+M0 (no physical via - so more of a pad)
+    # , western one should be MH -> M1 ()
+    # 2: route all GND to sets and then to the busbars and to the very last eastern port on S side
+    # 3: route all signal connections in M1 to the destination pads on S side -> try to minimize crossings
+

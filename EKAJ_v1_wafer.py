@@ -10,6 +10,7 @@ from ekin_master_die import edge_coupler_array_ekn_def_butt, edge_coupler_array_
 from logo_maker import svg_logo
 from wafer_component import wafer_from_spec
 
+VERBOSE = True
 
 WAFER_ID = "EKAJ_v2_W00"
 widths = (0.75, 1, 1.25, 1.5)
@@ -132,7 +133,7 @@ for die in assign_array:
 Adding wafer-level labels and logo.
 Currently done manually, in future might be automated.
 """
-wlabel_text = gf.partial(gf.components.text, layer="GE")
+wlabel_text = gf.partial(gf.components.text, layer="LABEL_SIN")
 wafer_label = wlabel_text(size=1000, 
                           text = WAFER_ID, 
                           justify = 'center' )
@@ -191,6 +192,9 @@ with open("exports/{}_cell_list.txt".format(WAFER_ID), "w") as output:
 """
 fc = gf.Component()
 fc.add_ref(component=gf.components.rectangle(size=(20,20), layer=(71,0)))
+
+if VERBOSE:
+     print()
 
 fill_tiled(
     wafer_filled,

@@ -1,9 +1,9 @@
 import gdsfactory as gf
 
 from ekin_master_die import ekn_master_die_ds, edge_coupler_array_ekn_def, edge_coupler_array_ekn_def_centerskip, edge_coupler_array_ekn_def_butt
-from test_crosssections import xs_ekn300_te_IMGREV
+from cross_sections import xs_ekn300_te_IMGREV
 
-label_txt = gf.partial(gf.components.text_rectangular, layer = "GE")
+label_txt = gf.partial(gf.components.text_rectangular, layer = "LABEL_SIN")
 
 
 @gf.cell_with_module_name
