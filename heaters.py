@@ -8,7 +8,6 @@ from gdsfactory.cross_section import CrossSection
 from gdsfactory.typings import ComponentSpec, CrossSectionSpec, Position
 
 __all__ = [
-    "xs_heater_metal_trench",
     "straight_heater_offset_wg_90deg",
 ]
 
@@ -123,7 +122,7 @@ def _build_layer_transitions(
 ) -> dict[str, Any]:
     """Return layer transition mapping for heater auto-tapers."""
     return {
-        "HEATER": gf.partial(
+        "MH": gf.partial(
             gf.components.taper_electrical,
             port_names=port_names_electrical,
             port_types=port_types_electrical,
@@ -137,10 +136,10 @@ def _build_layer_transitions(
 def straight_heater_offset_wg_90deg(
     heater_lenght: float = 320.0,
     waveguide_lenght: float = 350,
-    heater_wg_gap: float = 0,
-    cross_section_heater: CrossSectionSpec = "heater_metal",
+    heater_wg_gap: float = 1,
+    cross_section_heater: CrossSectionSpec = "xs_heater_metal",
     cross_section_waveguide: CrossSectionSpec = "strip",
-    cross_section_heater_conn: CrossSectionSpec = "heater_metal",
+    cross_section_heater_conn: CrossSectionSpec = "xs_heater_metal_trench",
     via_stack: ComponentSpec | None = "via_stack_m1_mtop",
     via_stack_west: ComponentSpec | None = None,
     via_stack_east: ComponentSpec | None = None,

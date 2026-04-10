@@ -1,7 +1,7 @@
 import gdsfactory as gf
 
 from ekin_master_die import ekn_master_die_ds, edge_coupler_array_stph_but #,edge_coupler_array_stph_tap
-from heaters import xs_heater_metal_trench
+from cross_sections import xs_heater_metal_trench
 from heaters import straight_heater_offset_wg_90deg
 from ekin_master_die import xs_ekn300_te_IMGREV
 
@@ -81,6 +81,7 @@ def stephan_master_serpentine(
     eca_e1 = ec_array_def(widths = (width,), axis_reflection = True)
 
     md = d.add_ref(master_die(
+        electrical_sides=("S","N"),
         fiber_arrays_by_side={
         "W": [eca_w1],
         "E": [eca_e1],
@@ -250,25 +251,25 @@ def stephan_master_serpentine(
 
 #     # routes.append(route)
 
-# #TODO: This is plain hack ... if there would be odd number of al. loops it would fall apart
-#     for arr in md.cell.info['fiber_arrays']:
-#          for loop in arr["fa_alignment_port_names"]:
-#             al_name = (arr["fa_alignment_port_names"][loop])
+#TODO: This is plain hack ... if there would be odd number of al. loops it would fall apart
+    for arr in md.cell.info['fiber_arrays']:
+         for loop in arr["fa_alignment_port_names"]:
+            al_name = (arr["fa_alignment_port_names"][loop])
 
-#             if int(loop) % 2 > 0:
-#                 rex1 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[0])
-#                 rex0 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[1])
-#             else:
-#                 rex0 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[0])
-#                 rex1 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[1])
-#             gf.routing.route_single(
-#                 component=d, 
-#                 port1= md.cell.ports.filter(regex=rex0)[0],
-#                 port2= md.cell.ports.filter(regex=rex1)[0],
-#                 cross_section=cross_section,
-#                 route_width=md.cell.ports.filter(regex=rex0)[0].width,
-#                 #separation= 127
-                                        # )
+            if int(loop) % 2 > 0:
+                rex1 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[0])
+                rex0 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[1])
+            else:
+                rex0 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[0])
+                rex1 = "^{}0{}_{}$".format(arr['side'], arr['array_index'], al_name[1])
+            gf.routing.route_single(
+                component=d, 
+                port1= md.cell.ports.filter(regex=rex0)[0],
+                port2= md.cell.ports.filter(regex=rex1)[0],
+                cross_section=cross_section,
+                route_width=md.cell.ports.filter(regex=rex0)[0].width,
+                #separation= 127
+                                        )
     # -------------------------------------------------------------------------
     # Add the Chip name tag
     # -------------------------------------------------------------------------
@@ -305,7 +306,7 @@ if __name__ == "__main__":
             center=True,
         )
     
-    via_stack_heater = gf.partial(gf.c.via_stack, size=(25,25), layers=('M1', 'DEEP_ETCH','HEATER'), correct_size=True, layer_offsets=(0,2,0))
+    via_stack_heater = gf.partial(gf.c.via_stack, size=(25,25), layers=('M1', 'DEEP_ETCH','MH'), correct_size=True, layer_offsets=(0,2,0))
 
     heater_locs = generate_heater_array(
         count = 7,
@@ -338,8 +339,8 @@ if __name__ == "__main__":
         heater_lenght=1000, 
         waveguide_lenght=1000, 
         cross_section_waveguide=xs_ekn300_te_IMGREV, 
-        cross_section_heater_conn=xs_heater_metal_trench, 
-        cross_section_heater= 'heater_metal',
+        cross_section_heater_conn='xs_heater_metal_trench', 
+        cross_section_heater= 'xs_heater_metal',
         via_stack=via_stack_heater,
         via_stack_offset=(0,-50)
     )

@@ -2,7 +2,7 @@ import gdsfactory as gf
 from gdsfactory.typings import LayerSpec
 
 from gdsfactory.cross_section import CrossSection
-from gdsfactory.typings import ComponentSpec, CrossSectionSpec, Position
+from gdsfactory.typings import ComponentSpec, CrossSectionSpec, Position, LayerSpec, IOPorts
 from typing import Any
 
 #HACK
@@ -23,10 +23,8 @@ def xs_ekn300_te_IMGREV(
     width: float = 0.75,
     offset: float = 0.0,
     layer: LayerSpec = "WG",
-    layer_slab: LayerSpec = (2, 0),
     radius: float = MINRAD,
     radius_min: float = MINRAD,
-    width_slab: float = 6,
     width_trench: float = 15,
     layer_trench: gf.typings.LayerSpec = "SIN_ETCH",
     **kwargs,
@@ -115,7 +113,28 @@ def xs_heater_metal_trench(
         **kwargs,
     )
 
+@gf.xsection
+def xs_heater_metal(
+    width: float = 1.0,
+    layer: LayerSpec = "MH",
+    radius: float | None = None,
+    port_names: IOPorts = port_names_electrical,
+    port_types: IOPorts = port_types_electrical,
+    **kwargs: Any,
+) -> CrossSection:
+    """Return Metal Strip cross_section."""
+    radius = radius or width
+    return gf.cross_section.cross_section(
+        width=width,
+        layer=layer,
+        radius=radius,
+        port_names=port_names,
+        port_types=port_types,
+        **kwargs,
+    )
+
 CROSS_SECTIONS = {
     "xs_heater_metal_trench": xs_heater_metal_trench,
     "xs_ekn300_te_IMGREV": xs_ekn300_te_IMGREV,
+    "xs_heater_metal": xs_heater_metal,
 }
