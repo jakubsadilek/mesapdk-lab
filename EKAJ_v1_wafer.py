@@ -11,9 +11,12 @@ from logo_maker import svg_logo
 from wafer_component import wafer_from_spec
 
 VERBOSE = True
+ADD_TILES = True
+EXPORT_FILES = True
 
-WAFER_ID = "EKAJ_v2_W00"
+WAFER_ID = "EKAJ_v2_W01"
 widths = (0.75, 1, 1.25, 1.5)
+
 
 SIN_THICKNESS = 321
 TEOS_THICKNESS = 3000
@@ -51,14 +54,16 @@ logo = svg_logo(
 
 
 BRT_TAP = gf.partial(ekst_v2_brt_master,ext_grp_spacing=127, 
-                     label = "EKAJ_v0\nBRT TAP",
+                     label = f"{WAFER_ID.split('_')[0] + '_' + WAFER_ID.split('_')[1]}\nBRT TAP",
+                     chip_id_label = WAFER_ID.split('_')[-1],
                      logo=logo, 
                      logo_loc=(8500,-3750))
 
 BRT_BUT = gf.partial(ekst_v2_brt_master,
                      ext_grp_spacing=127,
                      ec_array_def=edge_coupler_array_ekn_def_butt, 
-                     label = "EKAJ_v0\nBRT BUT",
+                     label = f"{WAFER_ID.split('_')[0] + '_' + WAFER_ID.split('_')[1]}\nBRT BUT",
+                     chip_id_label = WAFER_ID.split('_')[-1],
                      logo=logo, 
                      logo_loc=(8500,-3750))
 
@@ -66,7 +71,8 @@ MMWG_BUT = gf.partial(ekst_v2_brt_master,
                       bend_rads=(2000,1000), 
                       widths=(2,4,6,8,2,4,6,8,2,4,6,8),
                       ext_grp_spacing=512, 
-                      label="EKAJ_v0\nMMWG", 
+                      label=f"{WAFER_ID.split('_')[0] + '_' + WAFER_ID.split('_')[1]}\nMMWG",
+                      chip_id_label = WAFER_ID.split('_')[-1],
                       ec_array_def=edge_coupler_array_ekn_def_centerskip,
                       logo=logo, 
                       logo_loc=(8500,-3750))
@@ -75,7 +81,8 @@ PUL_TAP_DEF=[]
 for i in range(0, len(widths)):
     PUL_TAP_DEF.append(gf.partial(ekst_v2_pul_master, 
                                   width = (widths[i],), 
-                                  label=f"EKAJ_v0\nPUL TAP\nW{widths[i]:.2f}",
+                                  label=f"{WAFER_ID.split('_')[0] + '_' + WAFER_ID.split('_')[1]}\nPUL TAP\nW{widths[i]:.2f}",
+                                  chip_id_label = WAFER_ID.split('_')[-1],
                                   logo=logo, 
                                   logo_loc=(-5000,-3000)))
 
@@ -84,7 +91,8 @@ for i in range(0, len(widths)):
     PUL_BUT_DEF.append(gf.partial(ekst_v2_pul_master, 
                                   width = (widths[i],),
                                   ec_array_def=edge_coupler_array_ekn_def_butt_3loops, 
-                                  label=f"EKAJ_v0\nPUL BUT\nW{widths[i]:.2f}",
+                                  label=f"{WAFER_ID.split('_')[0] + '_' + WAFER_ID.split('_')[1]}\nPUL BUT\nW{widths[i]:.2f}",
+                                  chip_id_label = WAFER_ID.split('_')[-1],
                                   logo=logo, 
                                   logo_loc=(-5000,-3000)))
 
@@ -118,10 +126,10 @@ assign_array[(1, 3)] = PUL_BUT_DEF[1]
 assign_array[(0, 4)] = PUL_BUT_DEF[2]
 assign_array[(1, 4)] = PUL_BUT_DEF[3]
 
-wafer_ID = WAFER_ID.split("_")[-1]
+
 for die in assign_array:
     if assign_array[die] !=None:
-        die_name = ("{}_I{}_{}\nX{:.1f} Y{:.1f}".format(wafer_ID, die[0], die[1],
+        die_name = ("{}_I{}_{}\nX{:.1f} Y{:.1f}".format(WAFER_ID.split('_')[-1], die[0], die[1],
                                                          float(result.get_center(die)[0])/1000, 
                                                          float(result.get_center(die)[1])/1000))
         dieref = wafer_filled.add_ref(assign_array[die](chip_id_label = die_name,))
@@ -183,9 +191,7 @@ for inst in wafer_filled.insts:
         dies_to_PEC.append("True\t {}\n".format(inst.cell_name))
     else:
         dies_to_PEC.append("False\t {}\n".format(inst.cell_name))
-with open("exports/{}_cell_list.txt".format(WAFER_ID), "w") as output:
-    output.write("enabled\t%VarName%\n")
-    output.writelines(dies_to_PEC)
+
 
 
 """ Fill the wafer with a grid of tiles for better etch uniformity
@@ -196,7 +202,8 @@ fc.add_ref(component=gf.components.rectangle(size=(20,20), layer=(71,0)))
 if VERBOSE:
      print()
 
-fill_tiled(
+if ADD_TILES:
+    fill_tiled(
     wafer_filled,
     fc,
     [(kf.kdb.LayerInfo(99, 0), 0)],
@@ -219,5 +226,11 @@ fill_tiled(
 """Exporting the final GDS file and OAS file
 """
 
-wafer_filled.write('exports/{}.oas'.format(WAFER_ID))
-wafer_filled.write_gds('exports/{}.gds'.format(WAFER_ID))
+
+wafer_filled.show()
+if EXPORT_FILES:
+    wafer_filled.write('exports/{}.oas'.format(WAFER_ID))
+    wafer_filled.write_gds('exports/{}.gds'.format(WAFER_ID))
+    with open("exports/{}_cell_list.txt".format(WAFER_ID), "w") as output:
+        output.write("enabled\t%VarName%\n")
+        output.writelines(dies_to_PEC)
