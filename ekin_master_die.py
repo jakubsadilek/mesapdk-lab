@@ -143,6 +143,41 @@ df = die_frame(
     polish_sides=(),
 )
 
+df_xl = die_frame(
+    size=(20000, 20000),
+    dicing_width=45.0,
+    polish_width=0,
+    polish_sides=(),
+)
+
+
+ekn_master_die_ds_xl = gf.partial(die_frame_mesa,
+                               die_frame=df_xl,
+    # multiple arrays per side:
+    polish_ruler=polish_ruler_spec,
+    ruler_pos={"E": (-4450, 4450), "W": (-4450, 4450)},
+    layer_ruler='LABEL_SIN',
+    pad=gf.c.pad(size=(350,350), layer="M2"),
+    npads=30,
+    pad_pitch=500.0,
+    electrical_sides=("N", "S"),
+    xoffset_dc_pads=(-250.0, -400.0),
+    center_pads=True,
+ 
+    fiber_arrays_by_side={
+        "W": [fa_w1],
+        "E": [fa_e2],
+        # "N": [...], "S": [...]
+    },
+    # offsets per side (tuple applies to all arrays on that side,
+    # or give a list with one (along, normal) per array):
+    fiber_offsets_by_side={
+        "W": [(-7000.0, 0.0)],  # two arrays on W with different along shifts
+        "E": (7000.0, 0.0),                    # one array on E
+    },
+    rename_fiber_ports=True,  # exports W01_*, W02_*, E01_* at top level
+                               
+                               )
 
 ekn_master_die_ds = gf.partial(die_frame_mesa,
                                die_frame=df,
@@ -200,6 +235,33 @@ ekn_master_die_ss = gf.partial(die_frame_mesa,
                                
                                )
 
+ekn_master_die_ss_xl = gf.partial(die_frame_mesa,
+                               die_frame=df_xl,
+    # multiple arrays per side:
+    polish_ruler=polish_ruler_spec,
+    ruler_pos={"W": (-4450, 4450), },
+    layer_ruler='LABEL_SIN',
+    pad=gf.c.pad(size=(350,350), layer="M2"),
+    npads=30,
+    pad_pitch=500.0,
+    electrical_sides=("N", "S"),
+    xoffset_dc_pads=(-250.0, -400.0),
+    center_pads=True,
+ 
+    fiber_arrays_by_side={
+        "W": [fa_w1],
+
+        # "N": [...], "S": [...]
+    },
+    # offsets per side (tuple applies to all arrays on that side,
+    # or give a list with one (along, normal) per array):
+    fiber_offsets_by_side={
+        "W": [(-5000.0, 0.0)],  # two arrays on W with different along shifts
+                           # one array on E
+    },
+    rename_fiber_ports=True,  # exports W01_*, W02_*, E01_* at top level
+                               
+                               )
 
 ekn_master_die_straight = gf.partial(die_frame_mesa,
                                die_frame=df,
