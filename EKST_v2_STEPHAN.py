@@ -1,4 +1,10 @@
+
+from __future__ import annotations
+
+from collections import defaultdict
+
 import gdsfactory as gf
+from typing import Iterable
 
 from ekin_master_die import ekn_master_die_ds, edge_coupler_array_stph_but #,edge_coupler_array_stph_tap
 from cross_sections import xs_heater_metal_trench
@@ -16,6 +22,10 @@ class HeaterPlacement:
     rotation: float = 0.0
     mirror_y: bool = False
 
+@dataclass(frozen=True, slots=True)
+class PlacedHeater:
+    placement: HeaterPlacement
+    ref: gf.ComponentReference
 
 label_txt = gf.partial(gf.components.text_rectangular, layer = "LABEL_SIN")
 
@@ -54,6 +64,112 @@ def generate_heater_array(
         )
 
     return placements
+
+def get_ref_ports_by_suffix(
+    refs: Iterable[gf.ComponentReference],
+    suffix: str,
+) -> list[gf.Port]:
+    """Collect ports from component refs whose name ends with `suffix`."""
+    ports: list[gf.Port] = []
+    for ref in refs:
+        for port in ref.ports:
+            if port.name.endswith(suffix):
+                ports.append(port)
+    return ports
+
+def group_ports_by_y(
+    ports: Iterable[gf.Port],
+    *,
+    y_tol: float = 1e-3,
+) -> list[list[gf.Port]]:
+    """Group ports into rows by Y coordinate, sorted from bottom to top."""
+    rows: dict[float, list[gf.Port]] = defaultdict(list)
+
+    for p in ports:
+        key = round(float(p.dcenter[1]) / y_tol) * y_tol
+        rows[key].append(p)
+
+    grouped = []
+    for y in sorted(rows):
+        row = sorted(rows[y], key=lambda p: float(p.dcenter[0]))
+        grouped.append(row)
+
+    return grouped
+
+def add_row_busbar(
+    component: gf.Component,
+    row_ports: list[gf.Port],
+    *,
+    layer: str | tuple[int, int],
+    width: float,
+    x_pad: float = 80.0,
+    port_name: str | None = None,
+) -> gf.Port:
+    """
+    Draw one horizontal busbar spanning all ports in a row.
+    Returns a trunk-facing port at the right end.
+    """
+    if not row_ports:
+        raise ValueError("row_ports cannot be empty")
+
+    xs = [float(p.dcenter[0]) for p in row_ports]
+    y = float(row_ports[0].dcenter[1])
+
+    x0 = min(xs) - x_pad
+    x1 = max(xs) + x_pad
+
+    bus = component.add_ref(
+        gf.components.straight(
+            length=x1 - x0,
+            cross_section=gf.cross_section.cross_section(
+                width=width,
+                layer=layer,
+                port_names=("bus_e", "bus_w"),
+                port_types=("electrical", "electrical"),
+            ),
+        )
+    )
+    bus.dmove((x0, y))
+
+    if port_name:
+        component.add_port(port_name, port=bus.ports["bus_e"])
+
+    return bus.ports["bus_e"]
+
+def group_placed_heaters_by_row(
+    placed_heaters: list[PlacedHeater],
+    *,
+    y_tol: float = 1e-3,
+) -> list[list[PlacedHeater]]:
+    rows: dict[float, list[PlacedHeater]] = defaultdict(list)
+
+    for ph in placed_heaters:
+        key = round(float(ph.placement.position[1]) / y_tol) * y_tol
+        rows[key].append(ph)
+
+    grouped = []
+    for y in sorted(rows):
+        row = sorted(rows[y], key=lambda ph: float(ph.placement.position[0]))
+        grouped.append(row)
+
+    return grouped
+
+def get_row_busbar_offset(
+    row: list[PlacedHeater],
+    offset_abs: float,
+) -> float:
+    if not row:
+        raise ValueError("row cannot be empty")
+
+    mirrors = {ph.placement.mirror_y for ph in row}
+    if len(mirrors) != 1:
+        raise ValueError(
+            f"Row contains mixed mirror_y states: {mirrors}. "
+            "Busbar side is ambiguous."
+        )
+
+    mirror_y = next(iter(mirrors))
+    return +offset_abs if mirror_y else -offset_abs
 
 @gf.cell_with_module_name
 def stephan_master_serpentine(
@@ -109,20 +225,21 @@ def stephan_master_serpentine(
     xs_waveguide = gf.get_cross_section(cross_section, width=width)
 
 
-    hrefs = []
+    placed_heaters: list[PlacedHeater] = []
+    
 
     if heater is not None:
         heater_comp = gf.get_component(heater, cross_section_waveguide = xs_waveguide)
+
         for hp in heater_loc or []:
             href = d.add_ref(heater_comp)
             if hp.mirror_y:
                 href.mirror_y()
             if hp.rotation:
                 href.drotate(hp.rotation)
-            #print(href.dcenter)
             href.dmove(origin=(0, 0), destination=hp.position)
-            #print(hp.position, href.ports[0].y)
-            hrefs.append(href)
+
+            placed_heaters.append(PlacedHeater(placement=hp, ref=href))
             
 
 
@@ -215,41 +332,36 @@ def stephan_master_serpentine(
                 layer_marker=(20,0),
                 radius=bend_rad,
                 )
+        
 
-    #print(ports1)
-    
-#     xs_local = gf.get_cross_section(cross_section=cross_section, width = width)
+    gnd_ports = get_ref_ports_by_suffix(hrefs, "E_e4")
+    gnd_rows = group_ports_by_y(gnd_ports, y_tol=1.0)
 
-#     ekn_bend = gf.partial(gf.components.bend_euler, radius = bend_rad, cross_section = cross_section, width = width)
+    row_outputs = []
+    for i, row in enumerate(gnd_rows):
+        row_out = add_row_busbar(
+            d,
+            row,
+            layer="MH",
+            width=25,
+            x_pad=120,
+            port_name=f"gnd_row_{i}",
+        )
+        row_outputs.append(row_out)
 
+        for p in row:
+            gf.routing.route_single(
+                component=d,
+                port1=p,
+                port2=row_out,   # or better: a tap point on the bus, see note below
+                cross_section=gf.cross_section.cross_section(
+                    width=10,
+                    layer="MH",
+                    port_types=("electrical", "electrical"),
+                ),
+                allow_width_mismatch=True
+            )
 
-#     #ekn_bend=gf.partial(gf.c.bend_euler, cross_section=xs_ekn300_te_IMGREV)
-
-#     routes = []
-
-#     route = gf.routing.route_bundle(
-#             component=d,
-#             cross_section=cross_section,
-#             port1=ports2[0],
-#             port2=ports1[0],
-#             route_width=ports1[0].width,
-#             steps=[{"x": ports1[0].x + bend_rad  , "y": 0}, {"x":ports2[0].x - bend_rad, "y":0}],
-#             start_straight_length=15000,
-#             #waypoints=(),
-#             #waypoints=((2000, ports1[0].y),(ports2[0].x, ports1[0].y),(0, 0), (ports1[0].x, ports2[0].y), (-2000, ports2[0].y)),
-#             bend=ekn_bend(bend_rad),
-#             show_waypoints=True,
-#             layer_marker=(20,0),
-#             radius=bend_rad,
-#         )
-    
-#     #print(bend_rads[i], widths[x], route.length)
-
-#     # if label_txt != None:
-#     #     txt = d.add_ref(label_txt(text="W{:.2f}um L{:.3f}mm".format(route.start_port.dwidth, route.length/1e6)))       #in mm
-#     #     txt.dmove(origin=(0,0), destination=(route.start_port.trans.disp.x/1000 + lbl_offset[0] - 850, route.start_port.trans.disp.y/1000 + lbl_offset[1]))
-
-#     # routes.append(route)
 
 #TODO: This is plain hack ... if there would be odd number of al. loops it would fall apart
     for arr in md.cell.info['fiber_arrays']:

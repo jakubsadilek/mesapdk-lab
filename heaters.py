@@ -254,8 +254,8 @@ def straight_heater_offset_wg_90deg(
     heater_ref.dmovex(-straight_heater.dxsize / 2)
     heater_ref.dmovey(-(heater_wg_gap + heater_width / 2 + waveguide_width / 2))
 
-    corner_east.connect("e1", heater_ref.ports["e1"])
-    corner_west.connect("e2", heater_ref.ports["e2"])
+    corner_west.connect("e1", heater_ref.ports["e1"])
+    corner_east.connect("e2", heater_ref.ports["e2"])
 
     c.add_ports(wg_ref.ports)
 
@@ -276,8 +276,8 @@ def straight_heater_offset_wg_90deg(
             west_ref.dmove(
                 origin=west_ref.dcenter,
                 destination=(
-                    corner_west.ports["e1"].x + via_stack_offset_west[0],
-                    corner_west.ports["e1"].y + via_stack_offset_west[1],
+                    corner_west.ports["e2"].x + via_stack_offset_west[0],
+                    corner_west.ports["e2"].y + via_stack_offset_west[1],
                 ),
             )
 
@@ -289,7 +289,7 @@ def straight_heater_offset_wg_90deg(
 
         gf.routing.route_bundle_electrical(
             component=c,
-            ports1=[corner_west.ports["e1"]],
+            ports1=[corner_west.ports["e2"]],
             ports2=[west_ref.ports[via_stack_port_west]],
             allow_width_mismatch=True,
             allow_layer_mismatch=True,
@@ -307,8 +307,8 @@ def straight_heater_offset_wg_90deg(
             east_ref.dmove(
                 origin=east_ref.dcenter,
                 destination=(
-                    corner_east.ports["e2"].x - via_stack_offset_east[0],
-                    corner_east.ports["e2"].y + via_stack_offset_east[1],
+                    corner_east.ports["e1"].x - via_stack_offset_east[0],
+                    corner_east.ports["e1"].y + via_stack_offset_east[1],
                 ),
             )
 
@@ -320,7 +320,7 @@ def straight_heater_offset_wg_90deg(
 
         gf.routing.route_bundle_electrical(
             component=c,
-            ports1=[corner_east.ports["e2"]],
+            ports1=[corner_east.ports["e1"]],
             ports2=[east_ref.ports[via_stack_port_east]],
             allow_width_mismatch=True,
             allow_layer_mismatch=True,
