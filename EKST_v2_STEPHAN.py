@@ -24,12 +24,11 @@ class HeaterPlacement:
     rotation: float = 0.0
     mirror_y: bool = False
 
+
 @dataclass(frozen=True, slots=True)
 class PlacedHeater:
     placement: HeaterPlacement
     ref: gf.ComponentReference
-
-label_txt = gf.partial(gf.components.text_rectangular, layer = "LABEL_SIN")
 
 
 def generate_heater_array(
@@ -39,7 +38,7 @@ def generate_heater_array(
     *,
     base_id: str = "H",
     rotation: float = 0.0,
-    mirror_y: bool = False,   # 👉 výchozí stav
+    mirror_y: bool = False,
     alternate: bool = False,
 ) -> list[HeaterPlacement]:
     if count < 1:
@@ -49,13 +48,8 @@ def generate_heater_array(
     sx, sy = step
 
     placements: list[HeaterPlacement] = []
-
     for i in range(count):
-        if alternate:
-            current_mirror = mirror_y if i % 2 == 0 else not mirror_y
-        else:
-            current_mirror = mirror_y
-
+        current_mirror = mirror_y if not alternate or i % 2 == 0 else not mirror_y
         placements.append(
             HeaterPlacement(
                 id=f"{base_id}{i:02d}",
@@ -64,30 +58,122 @@ def generate_heater_array(
                 mirror_y=current_mirror,
             )
         )
-
     return placements
+
 
 def group_placed_heaters_by_row_and_mirror(
     placed_heaters: list[PlacedHeater],
     *,
     y_tol: float = 1e-3,
-) -> list[list[PlacedHeater]]:
+) -> list[tuple[float, bool, list[PlacedHeater]]]:
     groups: dict[tuple[float, bool], list[PlacedHeater]] = defaultdict(list)
 
     for ph in placed_heaters:
         row_y = round(float(ph.placement.position[1]) / y_tol) * y_tol
-        key = (row_y, ph.placement.mirror_y)
-        groups[key].append(ph)
+        groups[(row_y, ph.placement.mirror_y)].append(ph)
 
-    grouped = []
-    for key in sorted(groups.keys(), key=lambda k: (k[0], k[1])):
-        row = sorted(groups[key], key=lambda ph: float(ph.placement.position[0]))
-        grouped.append(row)
+    out: list[tuple[float, bool, list[PlacedHeater]]] = []
+    for (row_y, mirror_y) in sorted(groups.keys(), key=lambda k: (k[0], k[1])):
+        row = sorted(groups[(row_y, mirror_y)], key=lambda ph: float(ph.placement.position[0]))
+        out.append((row_y, mirror_y, row))
+    return out
 
-    return grouped
 
 def busbar_offset_from_mirror(mirror_y: bool, offset_abs: float) -> float:
     return +offset_abs if mirror_y else -offset_abs
+
+
+def place_heaters(
+    component: gf.Component,
+    heater: gf.typings.ComponentSpec,
+    heater_loc: list[HeaterPlacement] | None,
+    *,
+    cross_section_waveguide: gf.typings.CrossSectionSpec,
+) -> list[PlacedHeater]:
+    heater_comp = gf.get_component(heater, cross_section_waveguide=cross_section_waveguide)
+
+    placed_heaters: list[PlacedHeater] = []
+    for hp in heater_loc or []:
+        href = component.add_ref(heater_comp)
+        if hp.mirror_y:
+            href.mirror_y()
+        if hp.rotation:
+            href.drotate(hp.rotation)
+        href.dmove(origin=(0, 0), destination=hp.position)
+        placed_heaters.append(PlacedHeater(placement=hp, ref=href))
+
+    return placed_heaters
+
+
+def route_optical_heater_chain(
+    component: gf.Component,
+    hrefs: list[gf.ComponentReference],
+    *,
+    xs_waveguide: gf.CrossSection,
+    bend_rad: float,
+    route_turns_waypoints: tuple[Position, ...] | None,
+    input_port: gf.Port,
+    output_port: gf.Port,
+) -> None:
+    if not hrefs:
+        return
+
+    ekn_bend = gf.partial(gf.c.bend_euler, cross_section=xs_waveguide)
+
+    waypoint_i = 0
+    next_waypoint = Position()
+
+    for i in range(len(hrefs) - 1):
+        waypoints = next_waypoint or None
+
+        route_kwargs = dict(
+            component=component,
+            cross_section=xs_waveguide,
+            port1=hrefs[i].ports["o2"],
+            port2=hrefs[i + 1].ports["o1"],
+            bend=ekn_bend(bend_rad),
+            show_waypoints=True,
+            layer_marker=(20, 0),
+            radius=bend_rad,
+        )
+
+        if waypoints is not None:
+            route_kwargs["waypoints"] = (waypoints, (waypoints[0], waypoints[1] + 10))
+
+        gf.routing.route_bundle(**route_kwargs)
+
+        next_waypoint = ()
+
+        try:
+            row_change = hrefs[i + 1].ports[0].y != hrefs[i + 2].ports[0].y
+            if row_change and route_turns_waypoints is not None:
+                next_waypoint = route_turns_waypoints[waypoint_i]
+                waypoint_i += 1
+        except IndexError:
+            next_waypoint = None
+
+    gf.routing.route_bundle(
+        component=component,
+        cross_section=xs_waveguide,
+        port1=hrefs[0].ports["o1"],
+        port2=input_port,
+        bend=ekn_bend(bend_rad),
+        show_waypoints=True,
+        layer_marker=(20, 0),
+        radius=bend_rad,
+    )
+
+    gf.routing.route_bundle(
+        component=component,
+        cross_section=xs_waveguide,
+        port1=hrefs[-1].ports["o2"],
+        port2=output_port,
+        bend=ekn_bend(bend_rad),
+        show_waypoints=True,
+        layer_marker=(20, 0),
+        radius=bend_rad,
+    )
+
 
 def place_gnd_busbars(
     component: gf.Component,
@@ -101,27 +187,23 @@ def place_gnd_busbars(
     x_pad: float = 120.0,
     trunk_side: str = "east",
     y_tol: float = 1.0,
-) -> list[tuple[list[gf.Port], gf.ComponentReference, float, bool]]:
+    cross_section_backbone: gf.typings.CrossSectionSpec = "metal_routing",
+    cross_section_tap: gf.typings.CrossSectionSpec | None = None,
+    cross_section_route: gf.typings.CrossSectionSpec | None = None,
+) -> list[tuple[list[gf.Port], list[gf.Port], gf.Port]]:
     """
+    Create one GND busbar per (row_y, mirror_y) group.
+
     Returns:
-        [(gnd_ports, busbar_ref, row_y, mirror_y), ...]
+        [(gnd_ports, tap_ports, trunk_port), ...]
     """
-    out = []
-    groups = group_placed_heaters_by_row_and_mirror(placed_heaters, y_tol=y_tol)
+    out: list[tuple[list[gf.Port], list[gf.Port], gf.Port]] = []
 
-    for group in groups:
-        if not group:
-            continue
-
-        row_y = round(float(group[0].placement.position[1]) / y_tol) * y_tol
-        mirror_y = group[0].placement.mirror_y
-
-        # sanity check
-        if any(ph.placement.mirror_y != mirror_y for ph in group):
-            raise ValueError("Mixed mirror_y in one busbar group.")
-
-        group_sorted = sorted(group, key=lambda ph: float(ph.placement.position[0]))
-        gnd_ports = [ph.ref.ports[gnd_port_name] for ph in group_sorted]
+    for row_y, mirror_y, group in group_placed_heaters_by_row_and_mirror(
+        placed_heaters,
+        y_tol=y_tol,
+    ):
+        gnd_ports = [ph.ref.ports[gnd_port_name] for ph in group]
         port_xs = tuple(float(p.dcenter[0]) for p in gnd_ports)
 
         bus_ref = component.add_ref(
@@ -137,10 +219,28 @@ def place_gnd_busbars(
             )
         )
 
-        out.append((gnd_ports, bus_ref, row_y, mirror_y))
+        tap_ports = [bus_ref.ports[f"tap_{i}"] for i in range(len(gnd_ports))]
+        trunk_port = bus_ref.ports["trunk"]
+
+        xs_gnd = gf.cross_section.cross_section(
+            width=tap_width,
+            layer=layer,
+            port_types=("electrical", "electrical"),
+        )
+
+        gf.routing.route_bundle(
+            component=component,
+            ports1=gnd_ports,
+            ports2=tap_ports,
+            cross_section=xs_gnd,
+            allow_width_mismatch=True,
+        )
+
+        out.append((gnd_ports, tap_ports, trunk_port))
 
     return out
 
+label_txt = gf.partial(gf.components.text_rectangular, layer = "LABEL_SIN")
 
 @gf.cell_with_module_name
 def stephan_master_serpentine(
@@ -213,7 +313,7 @@ def stephan_master_serpentine(
             placed_heaters.append(PlacedHeater(placement=hp, ref=href))
             
 
-
+        hrefs = [ph.ref for ph in placed_heaters]
         ekn_bend=gf.partial(gf.c.bend_euler, cross_section=xs_waveguide)
 
         waypoint_i = 0
@@ -223,6 +323,7 @@ def stephan_master_serpentine(
         # obstacle2 = d.add_ref(gf.c.rectangle(size=(2500, 1000), layer="M3", centered=True)).dmove(origin=(0,0), destination=(-2500,3000))
         # obstacle3 = d.add_ref(gf.c.rectangle(size=(2500, 1000), layer="M3", centered=True)).dmove(origin=(0,0), destination=(-2500,0))
 
+        
         for i in range(0, len(hrefs)):
             if i < len(hrefs)-1:
 
@@ -303,7 +404,21 @@ def stephan_master_serpentine(
                 layer_marker=(20,0),
                 radius=bend_rad,
                 )
-        
+        # row_trunks = []
+        # if placed_heaters:
+        #     gnd_groups = place_gnd_busbars(
+        #         d,
+        #         placed_heaters,
+        #         gnd_port_name="E_e4",
+        #         offset_abs=100.0,
+        #         backbone_width=25.0,
+        #         tap_width=10.0,
+        #         layer="MH",
+        #         x_pad=120.0,
+        #         trunk_side="east",
+        #         y_tol=1.0,
+        #     )
+        #     row_trunks = [trunk for _, trunk in gnd_groups]
 
     # gnd_ports = get_ref_ports_by_suffix(hrefs, "E_e4")
     # gnd_rows = group_ports_by_y(gnd_ports, y_tol=1.0)
