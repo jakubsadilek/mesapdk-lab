@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from collections.abc import Sequence
 from gdsfactory.typings import Position
 
+from electrical import electrical_row_busbar
+
 @dataclass(frozen=True, slots=True)
 class HeaterPlacement:
     id: str
@@ -154,6 +156,25 @@ def group_placed_heaters_by_row(
 
     return grouped
 
+def group_placed_heaters_by_row_and_mirror(
+    placed_heaters: list[PlacedHeater],
+    *,
+    y_tol: float = 1e-3,
+) -> list[list[PlacedHeater]]:
+    groups: dict[tuple[float, bool], list[PlacedHeater]] = defaultdict(list)
+
+    for ph in placed_heaters:
+        row_y = round(float(ph.placement.position[1]) / y_tol) * y_tol
+        key = (row_y, ph.placement.mirror_y)
+        groups[key].append(ph)
+
+    grouped = []
+    for key in sorted(groups.keys(), key=lambda k: (k[0], k[1])):
+        row = sorted(groups[key], key=lambda ph: float(ph.placement.position[0]))
+        grouped.append(row)
+
+    return grouped
+
 def get_row_busbar_offset(
     row: list[PlacedHeater],
     offset_abs: float,
@@ -170,6 +191,108 @@ def get_row_busbar_offset(
 
     mirror_y = next(iter(mirrors))
     return +offset_abs if mirror_y else -offset_abs
+
+def busbar_offset_from_mirror(mirror_y: bool, offset_abs: float) -> float:
+    return +offset_abs if mirror_y else -offset_abs
+
+def place_gnd_busbars_for_rows(
+    component: gf.Component,
+    placed_heaters: list[PlacedHeater],
+    *,
+    gnd_port_suffix: str = "E_e4",
+    offset_abs: float = 100.0,
+    backbone_width: float = 25.0,
+    tap_width: float = 10.0,
+    layer: str | tuple[int, int] = "MH",
+    x_pad: float = 120.0,
+    trunk_side: str = "east",
+    y_tol: float = 1.0,
+) -> list[tuple[list[gf.Port], gf.ComponentReference]]:
+    """
+    Returns one entry per row:
+        ([sorted ground ports in row], busbar_ref)
+    """
+    rows = group_placed_heaters_by_row(placed_heaters, y_tol=y_tol)
+    out: list[tuple[list[gf.Port], gf.ComponentReference]] = []
+
+    for row in rows:
+        row_sorted = sorted(row, key=lambda ph: float(ph.placement.position[0]))
+
+        gnd_ports = [ph.ref.ports[gnd_port_suffix] for ph in row_sorted]
+        row_y = float(row_sorted[0].placement.position[1])
+        row_xs = tuple(float(ph.ref.ports[gnd_port_suffix].dcenter[0]) for ph in row_sorted)
+
+        backbone_offset_y = get_row_busbar_offset(row_sorted, offset_abs=offset_abs)
+
+        bus_ref = component.add_ref(
+            electrical_row_busbar(
+                port_xs=row_xs,
+                row_y=row_y,
+                backbone_offset_y=backbone_offset_y,
+                backbone_width=backbone_width,
+                tap_width=tap_width,
+                layer=layer,
+                x_pad=x_pad,
+                trunk_side=trunk_side,
+            )
+        )
+
+        out.append((gnd_ports, bus_ref))
+
+    return out
+
+def place_gnd_busbars(
+    component: gf.Component,
+    placed_heaters: list[PlacedHeater],
+    *,
+    gnd_port_name: str = "E_e4",
+    offset_abs: float = 100.0,
+    backbone_width: float = 25.0,
+    tap_width: float = 10.0,
+    layer: str | tuple[int, int] = "MH",
+    x_pad: float = 120.0,
+    trunk_side: str = "east",
+    y_tol: float = 1.0,
+) -> list[tuple[list[gf.Port], gf.ComponentReference, float, bool]]:
+    """
+    Returns:
+        [(gnd_ports, busbar_ref, row_y, mirror_y), ...]
+    """
+    out = []
+    groups = group_placed_heaters_by_row_and_mirror(placed_heaters, y_tol=y_tol)
+
+    for group in groups:
+        if not group:
+            continue
+
+        row_y = round(float(group[0].placement.position[1]) / y_tol) * y_tol
+        mirror_y = group[0].placement.mirror_y
+
+        # sanity check
+        if any(ph.placement.mirror_y != mirror_y for ph in group):
+            raise ValueError("Mixed mirror_y in one busbar group.")
+
+        group_sorted = sorted(group, key=lambda ph: float(ph.placement.position[0]))
+        gnd_ports = [ph.ref.ports[gnd_port_name] for ph in group_sorted]
+        port_xs = tuple(float(p.dcenter[0]) for p in gnd_ports)
+
+        bus_ref = component.add_ref(
+            electrical_row_busbar(
+                port_xs=port_xs,
+                row_y=row_y,
+                backbone_offset_y=busbar_offset_from_mirror(mirror_y, offset_abs),
+                backbone_width=backbone_width,
+                tap_width=tap_width,
+                layer=layer,
+                x_pad=x_pad,
+                trunk_side=trunk_side,
+            )
+        )
+
+        out.append((gnd_ports, bus_ref, row_y, mirror_y))
+
+    return out
+
 
 @gf.cell_with_module_name
 def stephan_master_serpentine(
@@ -334,33 +457,33 @@ def stephan_master_serpentine(
                 )
         
 
-    gnd_ports = get_ref_ports_by_suffix(hrefs, "E_e4")
-    gnd_rows = group_ports_by_y(gnd_ports, y_tol=1.0)
+    # gnd_ports = get_ref_ports_by_suffix(hrefs, "E_e4")
+    # gnd_rows = group_ports_by_y(gnd_ports, y_tol=1.0)
 
-    row_outputs = []
-    for i, row in enumerate(gnd_rows):
-        row_out = add_row_busbar(
-            d,
-            row,
-            layer="MH",
-            width=25,
-            x_pad=120,
-            port_name=f"gnd_row_{i}",
-        )
-        row_outputs.append(row_out)
+    # row_outputs = []
+    # for i, row in enumerate(gnd_rows):
+    #     row_out = add_row_busbar(
+    #         d,
+    #         row,
+    #         layer="MH",
+    #         width=25,
+    #         x_pad=120,
+    #         port_name=f"gnd_row_{i}",
+    #     )
+    #     row_outputs.append(row_out)
 
-        for p in row:
-            gf.routing.route_single(
-                component=d,
-                port1=p,
-                port2=row_out,   # or better: a tap point on the bus, see note below
-                cross_section=gf.cross_section.cross_section(
-                    width=10,
-                    layer="MH",
-                    port_types=("electrical", "electrical"),
-                ),
-                allow_width_mismatch=True
-            )
+    #     for p in row:
+    #         gf.routing.route_single(
+    #             component=d,
+    #             port1=p,
+    #             port2=row_out,   # or better: a tap point on the bus, see note below
+    #             cross_section=gf.cross_section.cross_section(
+    #                 width=10,
+    #                 layer="MH",
+    #                 port_types=("electrical", "electrical"),
+    #             ),
+    #             allow_width_mismatch=True
+    #         )
 
 
 #TODO: This is plain hack ... if there would be odd number of al. loops it would fall apart
