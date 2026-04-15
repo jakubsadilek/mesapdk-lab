@@ -30,6 +30,23 @@ class PlacedHeater:
     placement: HeaterPlacement
     ref: gf.ComponentReference
 
+@dataclass(frozen=True, slots=True)
+class GroundRoutingSpec:
+    port_name: str = "E_e4"
+    offset_abs: float = 200.0
+    x_pad: float = 120.0
+    trunk_side: str = "east"
+    y_tol: float = 1.0
+    cross_section_backbone: gf.typings.CrossSectionSpec = "xs_heater_metal_trench"
+    cross_section_tap: gf.typings.CrossSectionSpec | None = None
+    cross_section_route: gf.typings.CrossSectionSpec | None = None
+    backbone_width: float | None = 200.0
+    tap_width: float | None = 10.0
+    route_width: float | None = None
+    layer_transitions: dict[str, gf.typings.ComponentSpec] | None = None
+    auto_taper: bool = True
+    tap_length: float = 50.0
+
 
 def generate_heater_array(
     count: int,
@@ -78,10 +95,8 @@ def group_placed_heaters_by_row_and_mirror(
         out.append((row_y, mirror_y, row))
     return out
 
-
 def busbar_offset_from_mirror(mirror_y: bool, offset_abs: float) -> float:
     return +offset_abs if mirror_y else -offset_abs
-
 
 def place_heaters(
     component: gf.Component,
@@ -103,7 +118,6 @@ def place_heaters(
         placed_heaters.append(PlacedHeater(placement=hp, ref=href))
 
     return placed_heaters
-
 
 def route_optical_heater_chain(
     component: gf.Component,
@@ -174,22 +188,24 @@ def route_optical_heater_chain(
         radius=bend_rad,
     )
 
-
-def place_gnd_busbars(
+def place_gnd_busbars_by_mirror(
     component: gf.Component,
     placed_heaters: list[PlacedHeater],
     *,
     gnd_port_name: str = "E_e4",
     offset_abs: float = 100.0,
-    backbone_width: float = 25.0,
-    tap_width: float = 10.0,
-    layer: str | tuple[int, int] = "MH",
     x_pad: float = 120.0,
     trunk_side: str = "east",
     y_tol: float = 1.0,
     cross_section_backbone: gf.typings.CrossSectionSpec = "metal_routing",
     cross_section_tap: gf.typings.CrossSectionSpec | None = None,
     cross_section_route: gf.typings.CrossSectionSpec | None = None,
+    backbone_width: float | None = None,
+    tap_width: float | None = None,
+    route_width: float | None = None,
+    layer_transitions: dict[str, gf.typings.ComponentSpec] | None = None,
+    auto_taper: bool = True,
+    tap_length: float = 50.0,
 ) -> list[tuple[list[gf.Port], list[gf.Port], gf.Port]]:
     """
     Create one GND busbar per (row_y, mirror_y) group.
@@ -198,6 +214,12 @@ def place_gnd_busbars(
         [(gnd_ports, tap_ports, trunk_port), ...]
     """
     out: list[tuple[list[gf.Port], list[gf.Port], gf.Port]] = []
+
+    xs_route_spec = cross_section_route or cross_section_tap or cross_section_backbone
+    if route_width != None:
+        xs_route = gf.get_cross_section(xs_route_spec, width=route_width)
+    else:
+        xs_route = gf.get_cross_section(xs_route_spec)
 
     for row_y, mirror_y, group in group_placed_heaters_by_row_and_mirror(
         placed_heaters,
@@ -211,29 +233,153 @@ def place_gnd_busbars(
                 port_xs=port_xs,
                 row_y=row_y,
                 backbone_offset_y=busbar_offset_from_mirror(mirror_y, offset_abs),
+                cross_section_backbone=cross_section_backbone,
+                cross_section_tap=cross_section_tap,
                 backbone_width=backbone_width,
                 tap_width=tap_width,
-                layer=layer,
                 x_pad=x_pad,
                 trunk_side=trunk_side,
+                tap_length=tap_length
             )
         )
 
         tap_ports = [bus_ref.ports[f"tap_{i}"] for i in range(len(gnd_ports))]
         trunk_port = bus_ref.ports["trunk"]
 
-        xs_gnd = gf.cross_section.cross_section(
-            width=tap_width,
-            layer=layer,
-            port_types=("electrical", "electrical"),
-        )
-
-        gf.routing.route_bundle(
+        gf.routing.route_bundle_electrical(
             component=component,
             ports1=gnd_ports,
             ports2=tap_ports,
-            cross_section=xs_gnd,
+            cross_section=xs_route,
+            layer_transitions=layer_transitions,
+            auto_taper=auto_taper,
             allow_width_mismatch=True,
+            allow_layer_mismatch=True,
+        )
+
+        out.append((gnd_ports, tap_ports, trunk_port))
+
+    return out
+
+def get_gnd_side_for_heater(
+    ph: PlacedHeater,
+    *,
+    gnd_port_name: str = "E_e4",
+    y_tol: float = 1e-3,
+) -> int:
+    """Return +1 if the heater GND port is above the heater anchor, else -1."""
+    row_y = float(ph.placement.position[1])
+    port_y = float(ph.ref.ports[gnd_port_name].dcenter[1])
+    dy = port_y - row_y
+
+    if abs(dy) <= y_tol:
+        raise ValueError(
+            f"GND port {gnd_port_name!r} is too close to row_y for heater {ph.placement.id}. "
+            f"row_y={row_y}, port_y={port_y}, dy={dy}"
+        )
+
+    return +1 if dy > 0 else -1
+
+def group_placed_heaters_by_row_and_gnd_side(
+    placed_heaters: list[PlacedHeater],
+    *,
+    gnd_port_name: str = "E_e4",
+    row_y_tol: float = 1e-3,
+    side_y_tol: float = 1e-3,
+) -> list[tuple[float, int, list[PlacedHeater]]]:
+    """
+    Group heaters by row Y and actual GND escape side.
+
+    side = +1 => GND port above the row
+    side = -1 => GND port below the row
+    """
+    groups: dict[tuple[float, int], list[PlacedHeater]] = defaultdict(list)
+
+    for ph in placed_heaters:
+        row_y = round(float(ph.placement.position[1]) / row_y_tol) * row_y_tol
+        side = get_gnd_side_for_heater(
+            ph,
+            gnd_port_name=gnd_port_name,
+            y_tol=side_y_tol,
+        )
+        groups[(row_y, side)].append(ph)
+
+    out: list[tuple[float, int, list[PlacedHeater]]] = []
+    for (row_y, side) in sorted(groups.keys(), key=lambda k: (k[0], k[1])):
+        row = sorted(groups[(row_y, side)], key=lambda ph: float(ph.placement.position[0]))
+        out.append((row_y, side, row))
+
+    return out
+
+def busbar_offset_from_side(side: int, offset_abs: float) -> float:
+    if side not in (-1, +1):
+        raise ValueError(f"side must be -1 or +1, got {side}")
+    return float(side) * float(offset_abs)
+
+def place_gnd_busbars(
+    component: gf.Component,
+    placed_heaters: list[PlacedHeater],
+    *,
+    gnd_port_name: str = "E_e4",
+    offset_abs: float = 100.0,
+    x_pad: float = 120.0,
+    trunk_side: str = "east",
+    y_tol: float = 1.0,
+    cross_section_backbone: gf.typings.CrossSectionSpec = "metal_routing",
+    cross_section_tap: gf.typings.CrossSectionSpec | None = None,
+    cross_section_route: gf.typings.CrossSectionSpec | None = None,
+    backbone_width: float | None = None,
+    tap_width: float | None = None,
+    route_width: float | None = None,
+    layer_transitions: dict[str, gf.typings.ComponentSpec] | None = None,
+    auto_taper: bool = True,
+    tap_length: float = 50.0,
+) -> list[tuple[list[gf.Port], list[gf.Port], gf.Port]]:
+    out: list[tuple[list[gf.Port], list[gf.Port], gf.Port]] = []
+
+    xs_route_spec = cross_section_route or cross_section_tap or cross_section_backbone
+    xs_route = (
+        gf.get_cross_section(xs_route_spec, width=route_width)
+        if route_width is not None
+        else gf.get_cross_section(xs_route_spec)
+    )
+
+    for row_y, side, group in group_placed_heaters_by_row_and_gnd_side(
+        placed_heaters,
+        gnd_port_name=gnd_port_name,
+        row_y_tol=y_tol,
+        side_y_tol=1e-3,
+    ):
+        gnd_ports = [ph.ref.ports[gnd_port_name] for ph in group]
+        port_xs = tuple(float(p.dcenter[0]) for p in gnd_ports)
+
+        bus_ref = component.add_ref(
+            electrical_row_busbar(
+                port_xs=port_xs,
+                row_y=row_y,
+                backbone_offset_y=busbar_offset_from_side(side, offset_abs),
+                cross_section_backbone=cross_section_backbone,
+                cross_section_tap=cross_section_tap,
+                backbone_width=backbone_width,
+                tap_width=tap_width,
+                x_pad=x_pad,
+                trunk_side=trunk_side,
+                tap_length=tap_length,
+            )
+        )
+
+        tap_ports = [bus_ref.ports[f"tap_{i}"] for i in range(len(gnd_ports))]
+        trunk_port = bus_ref.ports["trunk"]
+
+        gf.routing.route_bundle_electrical(
+            component=component,
+            ports1=gnd_ports,
+            ports2=tap_ports,
+            cross_section=xs_route,
+            layer_transitions=layer_transitions,
+            auto_taper=auto_taper,
+            allow_width_mismatch=True,
+            allow_layer_mismatch=True,
         )
 
         out.append((gnd_ports, tap_ports, trunk_port))
@@ -259,7 +405,22 @@ def stephan_master_serpentine(
         label: str = "STPH_v0\nBRT",
         chip_id_label: str = "ESTPH_v0 SRP\nW00_I00\nX20.0 Y20.0",
         logo: gf.typings.ComponentSpec = None,
-        logo_loc: gf.typings.Position = None,        
+        logo_loc: gf.typings.Position = None,
+
+        gnd_port_name: str = "E_e4",
+        gnd_offset_abs: float = 280.0,
+        gnd_x_pad: float = 120.0,
+        gnd_trunk_side: str = "west",
+        gnd_y_tol: float = 1.0,
+        gnd_cross_section_backbone: gf.typings.CrossSectionSpec = "xs_heater_metal_trench",
+        gnd_cross_section_tap: gf.typings.CrossSectionSpec | None = None,
+        gnd_cross_section_route: gf.typings.CrossSectionSpec | None = None,
+        gnd_backbone_width: float | None = 200.0,
+        gnd_tap_width: float | None = 50.0,
+        gnd_route_width: float | None = 50,
+        gnd_layer_transitions: dict[str, gf.typings.ComponentSpec] | None = None,
+        gnd_auto_taper: bool = True,
+
 ) -> gf.Component:
     
     d = gf.Component()
@@ -274,8 +435,8 @@ def stephan_master_serpentine(
         "E": [eca_e1],
         },
         fiber_offsets_by_side={
-        "W": [(-3250.0, 0.0)],  # two arrays on W with different along shifts
-        "E": (3250.0, 0.0),                    # one array on E
+        "W": [(-3050.0, 0.0)],  # two arrays on W with different along shifts
+        "E": (3450.0, 0.0),                    # one array on E
     },
     ))
     #c.locked = False
@@ -300,153 +461,44 @@ def stephan_master_serpentine(
     
 
     if heater is not None:
-        heater_comp = gf.get_component(heater, cross_section_waveguide = xs_waveguide)
-
-        for hp in heater_loc or []:
-            href = d.add_ref(heater_comp)
-            if hp.mirror_y:
-                href.mirror_y()
-            if hp.rotation:
-                href.drotate(hp.rotation)
-            href.dmove(origin=(0, 0), destination=hp.position)
-
-            placed_heaters.append(PlacedHeater(placement=hp, ref=href))
-            
+        placed_heaters = place_heaters(
+            d,
+            heater,
+            heater_loc,
+            cross_section_waveguide=xs_waveguide,
+        )
 
         hrefs = [ph.ref for ph in placed_heaters]
-        ekn_bend=gf.partial(gf.c.bend_euler, cross_section=xs_waveguide)
 
-        waypoint_i = 0
-        next_waypoint = Position()
+        route_optical_heater_chain(
+            d,
+            hrefs,
+            xs_waveguide=xs_waveguide,
+            bend_rad=bend_rad,
+            route_turns_waypoints=route_turns_waypoints,
+            input_port=ports1[0],
+            output_port=ports2[0],
+        )
 
-        # obstacle = d.add_ref(gf.c.rectangle(size=(5500, 2500), layer="M3", centered=True)).dmove(origin=(0,0), destination=(-3000,1500))
-        # obstacle2 = d.add_ref(gf.c.rectangle(size=(2500, 1000), layer="M3", centered=True)).dmove(origin=(0,0), destination=(-2500,3000))
-        # obstacle3 = d.add_ref(gf.c.rectangle(size=(2500, 1000), layer="M3", centered=True)).dmove(origin=(0,0), destination=(-2500,0))
+        gnd_groups = place_gnd_busbars(
+            d,
+            placed_heaters,
+            gnd_port_name=gnd_port_name,
+            offset_abs=gnd_offset_abs,
+            x_pad=gnd_x_pad,
+            trunk_side=gnd_trunk_side,
+            y_tol=gnd_y_tol,
+            cross_section_backbone=gnd_cross_section_backbone,
+            cross_section_tap=gnd_cross_section_tap,
+            cross_section_route=gnd_cross_section_route,
+            backbone_width=gnd_backbone_width,
+            tap_width=gnd_tap_width,
+            route_width=gnd_route_width,
+            layer_transitions=gnd_layer_transitions,
+            auto_taper=gnd_auto_taper,
+        )
+        row_trunks = [trunk for _, _, trunk in gnd_groups]
 
-        
-        for i in range(0, len(hrefs)):
-            if i < len(hrefs)-1:
-
-                waypoints = next_waypoint or None
-                #print(hrefs[i+1].ports[0].y ,hrefs[i+2].ports[0].y,(hrefs[i+1].ports[0].y != hrefs[i+2].ports[0].y), waypoints)
-                
-                if waypoints != None: 
-                    route = gf.routing.route_bundle(
-                    component=d,
-                    cross_section=xs_waveguide,
-                    port1=hrefs[i].ports['o2'],
-                    port2=hrefs[i+1].ports['o1'],
-                    #waypoints=(),
-                    waypoints=(waypoints,(waypoints[0], waypoints[1]+10),),
-                    # waypoints=None,
-                    bend=ekn_bend(bend_rad),
-                    show_waypoints=True,
-                    layer_marker=(20,0),
-                    radius=bend_rad,
-                    # bboxes=[obstacle.bbox().enlarge(10), obstacle2.bbox(), obstacle3.bbox()],
-                    # collision_check_layers=('M3',)
-
-                    )
-                else:
-                    route = gf.routing.route_bundle(
-                    component=d,
-                    cross_section=xs_waveguide,
-                    port1=hrefs[i].ports['o2'],
-                    port2=hrefs[i+1].ports['o1'],
-                    #waypoints=(),
-                    #waypoints=waypoints,
-                    # waypoints=None,
-                    bend=ekn_bend(bend_rad),
-                    show_waypoints=True,
-                    layer_marker=(20,0),
-                    radius=bend_rad,
-                    # bboxes=[obstacle.bbox().enlarge(10), obstacle2.bbox(), obstacle3.bbox()],
-                    # collision_check_layers=('M3',)
-
-                    )
-                next_waypoint = ()
-            
-
-                try:
-                    
-                    if (hrefs[i+1].ports[0].y != hrefs[i+2].ports[0].y) and route_turns_waypoints != None:
-                        next_waypoint = route_turns_waypoints[waypoint_i]
-                        waypoint_i+=1
-                except:
-                    next_waypoint=None
-                    continue
-
-
-
-        
-        route = gf.routing.route_bundle(
-                component=d,
-                cross_section=xs_waveguide,
-                port1=hrefs[0].ports['o1'],
-                port2=ports1[0],
-                #waypoints=(),
-                #waypoints=((2000, ports1[0].y),(ports2[0].x, ports1[0].y),(0, 0), (ports1[0].x, ports2[0].y), (-2000, ports2[0].y)),
-                bend=ekn_bend(bend_rad),
-                show_waypoints=True,
-                layer_marker=(20,0),
-                radius=bend_rad,
-                )
-
-        route = gf.routing.route_bundle(
-                component=d,
-                cross_section=xs_waveguide,
-                port1=hrefs[-1].ports['o2'],
-                port2=ports2[0],
-                #waypoints=(),
-                #waypoints=((2000, ports1[0].y),(ports2[0].x, ports1[0].y),(0, 0), (ports1[0].x, ports2[0].y), (-2000, ports2[0].y)),
-                bend=ekn_bend(bend_rad),
-                show_waypoints=True,
-                layer_marker=(20,0),
-                radius=bend_rad,
-                )
-        # row_trunks = []
-        # if placed_heaters:
-        #     gnd_groups = place_gnd_busbars(
-        #         d,
-        #         placed_heaters,
-        #         gnd_port_name="E_e4",
-        #         offset_abs=100.0,
-        #         backbone_width=25.0,
-        #         tap_width=10.0,
-        #         layer="MH",
-        #         x_pad=120.0,
-        #         trunk_side="east",
-        #         y_tol=1.0,
-        #     )
-        #     row_trunks = [trunk for _, trunk in gnd_groups]
-
-    # gnd_ports = get_ref_ports_by_suffix(hrefs, "E_e4")
-    # gnd_rows = group_ports_by_y(gnd_ports, y_tol=1.0)
-
-    # row_outputs = []
-    # for i, row in enumerate(gnd_rows):
-    #     row_out = add_row_busbar(
-    #         d,
-    #         row,
-    #         layer="MH",
-    #         width=25,
-    #         x_pad=120,
-    #         port_name=f"gnd_row_{i}",
-    #     )
-    #     row_outputs.append(row_out)
-
-    #     for p in row:
-    #         gf.routing.route_single(
-    #             component=d,
-    #             port1=p,
-    #             port2=row_out,   # or better: a tap point on the bus, see note below
-    #             cross_section=gf.cross_section.cross_section(
-    #                 width=10,
-    #                 layer="MH",
-    #                 port_types=("electrical", "electrical"),
-    #             ),
-    #             allow_width_mismatch=True
-    #         )
 
 
 #TODO: This is plain hack ... if there would be odd number of al. loops it would fall apart
@@ -516,7 +568,7 @@ if __name__ == "__main__":
 
     heater_locs = generate_heater_array(
         count = 7,
-        initial_loc=(-1000, -3250),
+        initial_loc=(-1000, -3050),
         step=(1250, 0),
         alternate=True,
     )
@@ -524,7 +576,7 @@ if __name__ == "__main__":
 
     heater_locs += generate_heater_array(
         count = 7,
-        initial_loc=(6500, 0),
+        initial_loc=(6500, 200),
         step=(-1250, 0),
         alternate=True,
         mirror_y=False,
@@ -533,7 +585,7 @@ if __name__ == "__main__":
 
     heater_locs += generate_heater_array(
         count = 6,
-        initial_loc=(-1000, 3250),
+        initial_loc=(-1000, 3450),
         step=(1250, 0),
         alternate=True,
         mirror_y=True
@@ -541,8 +593,8 @@ if __name__ == "__main__":
 
     heater_def = gf.partial(
         straight_heater_offset_wg_90deg,
-        via_stack_offset_west = (0,-50),
-        via_stack_offset_east = (0,-50),
+        via_stack_offset_west = (0,-75),
+        via_stack_offset_east = (0,-75),
         heater_wg_gap=1,
         heater_taper_length = 10, 
         heater_lenght=1000, 
@@ -562,8 +614,9 @@ if __name__ == "__main__":
     stephan_master_serpentine( ec_array_def=edge_coupler_array_stph_but,
                               heater=heater_def,
                               heater_loc=heater_locs,
-                              route_turns_waypoints=((8600,-1625), (-9000, 1625)),
-                              logo=None, label = None, logo_loc=(8500,-3650), bend_rad=1575, chip_id_label=None).show()
+                              route_turns_waypoints=((8600,-1425), (-9000, 1825)),
+                              logo=None, label = None, logo_loc=(8500,-3650), bend_rad=1575, chip_id_label=None,
+                              gnd_cross_section_route = xs_heater_metal_trench).show()
 
     #TASKs:
 

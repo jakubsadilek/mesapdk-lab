@@ -56,8 +56,21 @@ def electrical_row_busbar(
     )
     backbone.dmove((x0, y_backbone))
 
-    trunk_port = backbone.ports["e"] if trunk_side == "east" else backbone.ports["w"]
+    trunk_port = backbone.ports["e1"] if trunk_side == "east" else backbone.ports["e2"]
     c.add_port("trunk", port=trunk_port)
+
+    # for i, x in enumerate(xs_sorted):
+    #     tap = c.add_ref(
+    #         gf.components.straight(
+    #             length=effective_tap_length,
+    #             cross_section=xs_tap,
+    #         )
+    #     )
+    #     tap.drotate(-90 if backbone_offset_y >= 0 else 90)
+    #     tap.dmove((x, y_backbone))
+    #     c.add_port(f"tap_{i}", port=tap.ports["e2"])
+
+    backbone_half_width = float(xs_backbone.width) / 2
 
     for i, x in enumerate(xs_sorted):
         tap = c.add_ref(
@@ -66,8 +79,21 @@ def electrical_row_busbar(
                 cross_section=xs_tap,
             )
         )
-        tap.drotate(-90 if backbone_offset_y >= 0 else 90)
-        tap.dmove((x, y_backbone))
-        c.add_port(f"tap_{i}", port=tap.ports["s"])
+
+        if backbone_offset_y >= 0:
+            # backbone is above the row -> tap should start at the bottom edge and go down
+            tap.drotate(-90)
+            anchor = (x, y_backbone - backbone_half_width)
+        else:
+            # backbone is below the row -> tap should start at the top edge and go up
+            tap.drotate(90)
+            anchor = (x, y_backbone + backbone_half_width)
+
+        tap.dmove(
+            origin=tap.ports["e1"].dcenter,
+            destination=anchor,
+        )
+
+        c.add_port(f"tap_{i}", port=tap.ports["e2"])
 
     return c

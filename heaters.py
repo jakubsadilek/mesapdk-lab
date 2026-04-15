@@ -15,65 +15,6 @@ __all__ = [
 port_names_electrical: gf.typings.IOPorts = ("e1", "e2")
 port_types_electrical: gf.typings.IOPorts = ("electrical", "electrical")
 
-
-# @gf.xsection
-# def xs_heater_metal_trench(
-#     width: float = 2.5,
-#     layer: gf.typings.LayerSpec = "MH",
-#     layer_trench: gf.typings.LayerSpec = "SIN_ETCH",
-#     radius: float | None = None,
-#     port_names: gf.typings.IOPorts = port_names_electrical,
-#     port_types: gf.typings.IOPorts = port_types_electrical,
-#     width_trench: float = 2.0,
-#     offset: float = 0.0,
-#     **kwargs: Any,
-# ) -> CrossSection:
-#     """Return a heater metal cross-section with a surrounding trench section.
-
-#     Parameters
-#     ----------
-#     width:
-#         Width of the heater conductor.
-#     layer:
-#         Layer used for the heater conductor.
-#     layer_trench:
-#         Layer used for the trench surrounding the heater.
-#     radius:
-#         Default bend radius for this cross-section. If omitted, ``width`` is used.
-#     port_names:
-#         Port names for the two electrical ports.
-#     port_types:
-#         Port types for the electrical ports.
-#     width_trench:
-#         Lateral trench width added on each side of the heater.
-#     offset:
-#         Center offset of the main section. Kept for API compatibility.
-#     **kwargs:
-#         Forwarded to :func:`gf.cross_section.cross_section`.
-#     """
-#     radius = radius or width
-
-#     sections = (
-#         gf.Section(
-#             width=width + 2 * width_trench,
-#             offset=offset,
-#             layer=layer_trench,
-#             name="trench_metal",
-#         ),
-#     )
-
-#     return gf.cross_section.cross_section(
-#         width=width,
-#         offset=offset,
-#         layer=layer,
-#         radius=radius,
-#         port_names=port_names,
-#         port_types=port_types,
-#         sections=sections,
-#         **kwargs,
-#     )
-
-
 def _get_ports_for_orientation(
     ref: gf.ComponentReference,
     orientation: int | None,
@@ -140,6 +81,8 @@ def straight_heater_offset_wg_90deg(
     cross_section_heater: CrossSectionSpec = "xs_heater_metal",
     cross_section_waveguide: CrossSectionSpec = "strip",
     cross_section_heater_conn: CrossSectionSpec = "xs_heater_metal_trench",
+    layer_transitions: dict[str, Any] | None = None,
+    auto_taper: bool = True,
     via_stack: ComponentSpec | None = "via_stack_m1_mtop",
     via_stack_west: ComponentSpec | None = None,
     via_stack_east: ComponentSpec | None = None,
@@ -259,9 +202,13 @@ def straight_heater_offset_wg_90deg(
 
     c.add_ports(wg_ref.ports)
 
-    layer_transitions = _build_layer_transitions(
-        cross_section_heater_conn=cross_section_heater_conn,
-        taper_length=heater_taper_length,
+    resolved_layer_transitions = (
+        layer_transitions
+        if layer_transitions is not None
+        else _build_layer_transitions(
+            cross_section_heater_conn=cross_section_heater_conn,
+            taper_length=heater_taper_length,
+        )
     )
 
     west_ref = None
@@ -293,9 +240,9 @@ def straight_heater_offset_wg_90deg(
             ports2=[west_ref.ports[via_stack_port_west]],
             allow_width_mismatch=True,
             allow_layer_mismatch=True,
-            auto_taper=True,
+            auto_taper=auto_taper,
             cross_section=cross_section_heater_conn,
-            layer_transitions=layer_transitions,
+            layer_transitions=resolved_layer_transitions,
         )
 
     if via_stack_east is not None:
@@ -324,9 +271,9 @@ def straight_heater_offset_wg_90deg(
             ports2=[east_ref.ports[via_stack_port_east]],
             allow_width_mismatch=True,
             allow_layer_mismatch=True,
-            auto_taper=True,
+            auto_taper=auto_taper,
             cross_section=cross_section_heater_conn,
-            layer_transitions=layer_transitions,
+            layer_transitions=resolved_layer_transitions,
         )
 
     if west_ref is not None:
