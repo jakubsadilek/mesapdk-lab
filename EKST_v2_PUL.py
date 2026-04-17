@@ -22,6 +22,7 @@ def ekst_v2_pul_master(
         chip_id_label: str = "EKAJ_v0 PUL\nW00_I00\nX20.0 Y20.0",
         logo: gf.typings.ComponentSpec = None,
         logo_loc: gf.typings.Position = None,
+        n_loops: int = 6,
         
 ) -> gf.Component:
 
@@ -55,7 +56,7 @@ def ekst_v2_pul_master(
                                    bend=ekn_bend,
                                    cross_section=xs_local, 
 
-                                   n_loops=6,
+                                   n_loops=n_loops,
                                    spacing=50,
                                    opposite_ends=False))
 

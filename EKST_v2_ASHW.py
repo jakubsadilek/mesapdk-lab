@@ -2,14 +2,14 @@ import gdsfactory as gf
 
 from ekin_master_die import edge_coupler_array_ekn_def, edge_coupler_array_ekn_def_centerskip, edge_coupler_array_ekn_def_butt
 from cross_sections import xs_ekn300_te_IMGREV
-from ekin_master_die import ekn_master_die_ss_xl, ekn_master_die_ds_xl
+from ekin_master_die import ekn_master_die_ss_xl, ekn_master_die_ds_xl, ekn_master_die_ds
 
 label_txt = gf.partial(gf.components.text_rectangular, layer = "LABEL_SIN")
 
 
 @gf.cell_with_module_name
 def ekst_v2_brt_master(
-        master_die: gf.typings.ComponentSpec = ekn_master_die_ds_xl,
+        master_die: gf.typings.ComponentSpec = ekn_master_die_ds,
         widths: tuple = (0.75, 1, 1.25, 1.5),
         bend_rads: tuple = (7500),
         cross_section:gf.typings.CrossSectionSpec = xs_ekn300_te_IMGREV,
@@ -143,5 +143,5 @@ if __name__ == "__main__":
                        ec_array_def=edge_coupler_array_ekn_def_butt, 
                        logo=logo, logo_loc=(-5000,5000),
                        widths=(9,10,11,12),
-                       bend_rads=(8000,8000)).show()
+                       bend_rads=(2000,2000)).show()
     #ekst_v2_brt_master(bend_rads=(2000,1000), widths=(2,4,6,8,2,4,6,8,2,4,6,8),ext_grp_spacing=512, label="EKST_v2\nMMWG", ec_array_def=edge_coupler_array_ekn_def_centerskip).show()
