@@ -24,7 +24,6 @@ class HeaterPlacement:
     rotation: float = 0.0
     mirror_y: bool = False
 
-
 @dataclass(frozen=True, slots=True)
 class PlacedHeater:
     placement: HeaterPlacement
@@ -47,6 +46,18 @@ class GroundRoutingSpec:
     auto_taper: bool = True
     tap_length: float = 50.0
 
+    via_stack: gf.typings.ComponentSpec | None = None
+    via_stack_x: float | None = None
+    via_stack_dx: float = 150.0
+    via_stack_port_trunk: str = "e2"
+    via_stack_port_collector: str = "e1"
+
+    trunk_route_cross_section: gf.typings.CrossSectionSpec | None = None
+    trunk_route_width: float | None = None
+
+    collector_cross_section: gf.typings.CrossSectionSpec | None = None
+    collector_width: float | None = None
+    collector_target_port: str = "S29_e1"
 
 def generate_heater_array(
     count: int,
@@ -76,7 +87,6 @@ def generate_heater_array(
             )
         )
     return placements
-
 
 def group_placed_heaters_by_row_and_mirror(
     placed_heaters: list[PlacedHeater],
@@ -319,52 +329,42 @@ def busbar_offset_from_side(side: int, offset_abs: float) -> float:
 def place_gnd_busbars(
     component: gf.Component,
     placed_heaters: list[PlacedHeater],
-    *,
-    gnd_port_name: str = "E_e4",
-    offset_abs: float = 100.0,
-    x_pad: float = 120.0,
-    trunk_side: str = "east",
-    y_tol: float = 1.0,
-    cross_section_backbone: gf.typings.CrossSectionSpec = "metal_routing",
-    cross_section_tap: gf.typings.CrossSectionSpec | None = None,
-    cross_section_route: gf.typings.CrossSectionSpec | None = None,
-    backbone_width: float | None = None,
-    tap_width: float | None = None,
-    route_width: float | None = None,
-    layer_transitions: dict[str, gf.typings.ComponentSpec] | None = None,
-    auto_taper: bool = True,
-    tap_length: float = 50.0,
+    gnd: GroundRoutingSpec,
 ) -> list[tuple[list[gf.Port], list[gf.Port], gf.Port]]:
     out: list[tuple[list[gf.Port], list[gf.Port], gf.Port]] = []
 
-    xs_route_spec = cross_section_route or cross_section_tap or cross_section_backbone
+    xs_route_spec = (
+        gnd.cross_section_route
+        or gnd.cross_section_tap
+        or gnd.cross_section_backbone
+    )
     xs_route = (
-        gf.get_cross_section(xs_route_spec, width=route_width)
-        if route_width is not None
+        gf.get_cross_section(xs_route_spec, width=gnd.route_width)
+        if gnd.route_width is not None
         else gf.get_cross_section(xs_route_spec)
     )
 
     for row_y, side, group in group_placed_heaters_by_row_and_gnd_side(
         placed_heaters,
-        gnd_port_name=gnd_port_name,
-        row_y_tol=y_tol,
+        gnd_port_name=gnd.port_name,
+        row_y_tol=gnd.y_tol,
         side_y_tol=1e-3,
     ):
-        gnd_ports = [ph.ref.ports[gnd_port_name] for ph in group]
+        gnd_ports = [ph.ref.ports[gnd.port_name] for ph in group]
         port_xs = tuple(float(p.dcenter[0]) for p in gnd_ports)
 
         bus_ref = component.add_ref(
             electrical_row_busbar(
                 port_xs=port_xs,
                 row_y=row_y,
-                backbone_offset_y=busbar_offset_from_side(side, offset_abs),
-                cross_section_backbone=cross_section_backbone,
-                cross_section_tap=cross_section_tap,
-                backbone_width=backbone_width,
-                tap_width=tap_width,
-                x_pad=x_pad,
-                trunk_side=trunk_side,
-                tap_length=tap_length,
+                backbone_offset_y=busbar_offset_from_side(side, gnd.offset_abs),
+                cross_section_backbone=gnd.cross_section_backbone,
+                cross_section_tap=gnd.cross_section_tap,
+                backbone_width=gnd.backbone_width,
+                tap_width=gnd.tap_width,
+                x_pad=gnd.x_pad,
+                trunk_side=gnd.trunk_side,
+                tap_length=gnd.tap_length,
             )
         )
 
@@ -376,8 +376,8 @@ def place_gnd_busbars(
             ports1=gnd_ports,
             ports2=tap_ports,
             cross_section=xs_route,
-            layer_transitions=layer_transitions,
-            auto_taper=auto_taper,
+            layer_transitions=gnd.layer_transitions,
+            auto_taper=gnd.auto_taper,
             allow_width_mismatch=True,
             allow_layer_mismatch=True,
         )
@@ -385,6 +385,98 @@ def place_gnd_busbars(
         out.append((gnd_ports, tap_ports, trunk_port))
 
     return out
+
+def place_gnd_via_bank(
+    component: gf.Component,
+    row_trunks: list[gf.Port],
+    gnd: GroundRoutingSpec,
+) -> list[gf.Port]:
+    """
+    Place one via stack per row trunk at a common X location and route each
+    trunk into it.
+
+    Returns
+    -------
+    list[gf.Port]
+        Collector-side ports of the via stacks (intended for the later M1 collector).
+    """
+    if not row_trunks:
+        return []
+
+    if gnd.via_stack is None:
+        raise ValueError("gnd.via_stack must be set to place the GND via bank")
+
+    # Use the same route cross-section logic as in place_gnd_busbars()
+    xs_route_spec = (
+        gnd.cross_section_route
+        or gnd.cross_section_tap
+        or gnd.cross_section_backbone
+    )
+    xs_route = (
+        gf.get_cross_section(xs_route_spec, width=gnd.route_width)
+        if gnd.route_width is not None
+        else gf.get_cross_section(xs_route_spec)
+    )
+
+    xs_trunk_spec = gnd.trunk_route_cross_section or gnd.cross_section_backbone
+    xs_trunk = (
+        gf.get_cross_section(xs_trunk_spec, width=gnd.trunk_route_width)
+        if gnd.trunk_route_width is not None
+        else gf.get_cross_section(xs_trunk_spec, width=gnd.backbone_width)
+        if gnd.backbone_width is not None
+        else gf.get_cross_section(xs_trunk_spec)
+    )
+
+    trunks_sorted = sorted(row_trunks, key=lambda p: float(p.dcenter[1]))
+    trunk_xs = [float(p.dcenter[0]) for p in trunks_sorted]
+
+    if gnd.via_stack_x is not None:
+        via_x = float(gnd.via_stack_x)
+    else:
+        if gnd.trunk_side == "west":
+            via_x = min(trunk_xs) - float(gnd.via_stack_dx)
+        else:
+            via_x = max(trunk_xs) + float(gnd.via_stack_dx)
+
+    collector_ports: list[gf.Port] = []
+
+    for i, trunk in enumerate(trunks_sorted):
+        via_ref = component.add_ref(gf.get_component(gnd.via_stack))
+
+        trunk_port_name = gnd.via_stack_port_trunk
+        collector_port_name = gnd.via_stack_port_collector
+
+        if trunk_port_name not in via_ref.ports:
+            raise ValueError(
+                f"Port {trunk_port_name!r} not found on via_stack ports: "
+                f"{list(via_ref.ports.keys())}"
+            )
+        if collector_port_name not in via_ref.ports:
+            raise ValueError(
+                f"Port {collector_port_name!r} not found on via_stack ports: "
+                f"{list(via_ref.ports.keys())}"
+            )
+
+        # Move via so that the trunk-facing port sits at the target X and row Y
+        via_ref.dmove(
+            origin=via_ref.ports[trunk_port_name].dcenter,
+            destination=(via_x, float(trunk.dcenter[1])),
+        )
+
+        gf.routing.route_bundle_electrical(
+            component=component,
+            ports1=[trunk],
+            ports2=[via_ref.ports[trunk_port_name]],
+            cross_section=xs_trunk,
+            layer_transitions=gnd.layer_transitions,
+            auto_taper=gnd.auto_taper,
+            allow_width_mismatch=True,
+            allow_layer_mismatch=True,
+        )
+
+        collector_ports.append(via_ref.ports[collector_port_name])
+
+    return collector_ports
 
 label_txt = gf.partial(gf.components.text_rectangular, layer = "LABEL_SIN")
 
@@ -407,19 +499,14 @@ def stephan_master_serpentine(
         logo: gf.typings.ComponentSpec = None,
         logo_loc: gf.typings.Position = None,
 
-        gnd_port_name: str = "E_e4",
-        gnd_offset_abs: float = 280.0,
-        gnd_x_pad: float = 120.0,
-        gnd_trunk_side: str = "west",
-        gnd_y_tol: float = 1.0,
-        gnd_cross_section_backbone: gf.typings.CrossSectionSpec = "xs_heater_metal_trench",
-        gnd_cross_section_tap: gf.typings.CrossSectionSpec | None = None,
-        gnd_cross_section_route: gf.typings.CrossSectionSpec | None = None,
-        gnd_backbone_width: float | None = 200.0,
-        gnd_tap_width: float | None = 50.0,
-        gnd_route_width: float | None = 50,
-        gnd_layer_transitions: dict[str, gf.typings.ComponentSpec] | None = None,
-        gnd_auto_taper: bool = True,
+        gnd_routing: GroundRoutingSpec = GroundRoutingSpec(
+            offset_abs=280.0,
+            trunk_side="west",
+            cross_section_backbone="xs_heater_metal_trench",
+            backbone_width=200.0,
+            tap_width=50.0,
+            route_width=50.0,
+            ),
 
 ) -> gf.Component:
     
@@ -483,21 +570,15 @@ def stephan_master_serpentine(
         gnd_groups = place_gnd_busbars(
             d,
             placed_heaters,
-            gnd_port_name=gnd_port_name,
-            offset_abs=gnd_offset_abs,
-            x_pad=gnd_x_pad,
-            trunk_side=gnd_trunk_side,
-            y_tol=gnd_y_tol,
-            cross_section_backbone=gnd_cross_section_backbone,
-            cross_section_tap=gnd_cross_section_tap,
-            cross_section_route=gnd_cross_section_route,
-            backbone_width=gnd_backbone_width,
-            tap_width=gnd_tap_width,
-            route_width=gnd_route_width,
-            layer_transitions=gnd_layer_transitions,
-            auto_taper=gnd_auto_taper,
+            gnd_routing,
         )
         row_trunks = [trunk for _, _, trunk in gnd_groups]
+
+        gnd_collector_ports = place_gnd_via_bank(
+            d,
+            row_trunks,
+            gnd_routing,
+        )
 
 
 
@@ -541,8 +622,6 @@ def stephan_master_serpentine(
 
     return d
 
-
-
 if __name__ == "__main__":
 
 
@@ -564,6 +643,7 @@ if __name__ == "__main__":
     )
 
     via_stack_heater = gf.partial(gf.c.via_stack, size=(50,50), vias=(None, None, via_m1), layers=('M1', 'SIN_ETCH','MH'), correct_size=True, layer_offsets=(0,2,0))
+    via_stack_collector = gf.partial(gf.c.via_stack, size=(200,200), vias=(None, None, via_m1), layers=('M1', 'SIN_ETCH','MH'), correct_size=True, layer_offsets=(0,2,0))
     via_stack_gnd = gf.partial(gf.c.via_stack, vias = (None, None), size=(50,50), layers=('SIN_ETCH','MH'), correct_size=True, layer_offsets=(2,0))
 
     heater_locs = generate_heater_array(
@@ -607,16 +687,35 @@ if __name__ == "__main__":
 
     )
 
-
+    gnd_spec = GroundRoutingSpec(
+        offset_abs=280.0,
+        trunk_side="west",
+        cross_section_backbone="xs_heater_metal_trench",
+        cross_section_route=xs_heater_metal_trench,
+        backbone_width=150.0,
+        tap_width=50.0,
+        route_width=50.0,
+        via_stack=via_stack_collector,            # or a dedicated MH->M1 stack
+        via_stack_x= 7300.0,                   # example fixed X
+        via_stack_port_trunk="e1",             # MH-facing
+        via_stack_port_collector="e1",         # M1-facing
+        auto_taper=True,
+    )
 
 
     #ekst_v2_brt_master(ext_grp_spacing=127).show()
-    stephan_master_serpentine( ec_array_def=edge_coupler_array_stph_but,
-                              heater=heater_def,
-                              heater_loc=heater_locs,
-                              route_turns_waypoints=((8600,-1425), (-9000, 1825)),
-                              logo=None, label = None, logo_loc=(8500,-3650), bend_rad=1575, chip_id_label=None,
-                              gnd_cross_section_route = xs_heater_metal_trench).show()
+    stephan_master_serpentine(
+        ec_array_def=edge_coupler_array_stph_but,
+        heater=heater_def,
+        heater_loc=heater_locs,
+        route_turns_waypoints=((8600, -1425), (-9000, 1825)),
+        logo=None,
+        label=None,
+        logo_loc=(8500, -3650),
+        bend_rad=1575,
+        chip_id_label=None,
+        gnd_routing =gnd_spec,
+    ).show()
 
     #TASKs:
 
