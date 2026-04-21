@@ -262,7 +262,7 @@ def straight_heater_offset_wg_90deg(
         if via_stack_port_east not in east_ref.ports:
             raise ValueError(
                 f"Port {via_stack_port_east!r} not found in via_stack_east ports: "
-                f"{list(east_ref.ports.keys())}"
+                f"{[p.name for p in east_ref.ports]}"
             )
 
         gf.routing.route_bundle_electrical(

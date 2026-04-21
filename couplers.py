@@ -47,42 +47,170 @@ def _width_exp(t: float, y1: float, y2: float, alpha: float = 3.0) -> float:
 
 @gf.cell_with_module_name
 def pos_taper_ec(
-    width: float | None = None, # µm - default handler for start_width external call
-    start_width: float = 2.5,   # µm
-    tip_width: float = 0.05,    # µm (drawn 50 nm, expect ~60–80 nm on wafer)
-    L: float = 200.0,           # µm: linear taper length (start_width -> tip_width)
-    L_buf: float = 15.0,        # µm: straight buffer after tip before facet
-    layer: LayerSpec = "WG",
-    xs_waveguide: CrossSectionSpec | None = 'strip',
+    width: float | None = None,          # compatibility alias for start_width
+    start_width: float = 0.05,           # interior waveguide-side width (thin side)
+    end_width: float = 2.5,              # cleave-side width (thick side)
+    L: float = 200.0,                    # taper length
+    L_buf: float = 15.0,                 # thick straight buffer BEFORE cleave
+    xs_waveguide: CrossSectionSpec | None = "strip",
     cleave_marker_layer: LayerSpec | None = None,
 ) -> Component:
-    
-    c = gf.Component()
+    """Positive edge coupler with cleave line fixed at x=0.
 
-    if not (start_width > 0 and tip_width > 0):
-        raise ValueError("All widths must be positive.")
-    if not (L >= 1 and L_buf >= 0):
-        raise ValueError("Lengths must be >= 1 µm (buffer can be 0).")
-    # if not (start_width > mid_width > tip_width):
-    #     raise ValueError("Require start_width > mid_width > tip_width.")
+    Geometry:
+        [ thick buffer ] -> (cleave @ x=0) -> [ taper thick -> thin ] -> [ thin interior WG ]
+
+    External contract:
+        o1  = sacrificial / wafer-test side (negative x)
+        ocl = cleave line at x=0
+        o2  = interior waveguide interface (positive x)
+    """
+    c = gf.Component()
 
     if start_width is None and width is not None:
         start_width = width
     elif start_width is not None and width is not None:
         warnings.warn(
-            "`width` overrides `start_width`. "
-        "Use only `start_width` going forward.",
+            "`width` overrides `start_width`. Use only `start_width` going forward.",
             stacklevel=2,
         )
         start_width = width
     elif start_width is None:
         raise ValueError("start_width (or width) must be provided.")
 
+    if not (start_width > 0 and end_width > 0):
+        raise ValueError("All widths must be positive.")
+    if not (L >= 1 and L_buf >= 0):
+        raise ValueError("Lengths must be >= 1 µm (buffer can be 0).")
 
-    
+    thin_xs = gf.get_cross_section(xs_waveguide, width=start_width)
+    thick_xs = gf.get_cross_section(xs_waveguide, width=end_width)
 
+    # Build taper locally from x=0..L, then move so cleave is at x=0
+    taper_spec = gf.c.taper_cross_section(
+        length=L,
+        cross_section1=thick_xs,   # cleave side
+        cross_section2=thin_xs,    # interior side
+    )
+    taper_ref = c.add_ref(taper_spec)
+
+    # Put taper thick-side port exactly at x=0
+    # taper_ref.o1 becomes the cleave-side edge
+    if hasattr(taper_ref, "dmove"):
+        taper_ref.dmove(origin=taper_ref.ports["o1"].center, destination=(0, 0))
+    else:
+        px, py = taper_ref.ports["o1"].center
+        taper_ref.move((-px, -py))
+
+    # Buffer must be on negative-x side and terminate at cleave
+    buffer_spec = gf.c.straight(length=L_buf, cross_section=thick_xs)
+    buffer_ref = c.add_ref(buffer_spec)
+    buffer_ref.connect("o2", taper_ref.ports["o1"])
+
+    # Optional cleave marker exactly at x=0
+    if cleave_marker_layer is not None:
+        c.add_polygon(
+            [
+                (0.0, -5.0),
+                (0.0,  5.0),
+                (0.02, 5.0),
+                (0.02, -5.0),
+            ],
+            layer=cleave_marker_layer,
+        )
+
+    c.add_port("o1", port=buffer_ref.ports["o1"])   # sacrificial side, x < 0
+    c.add_port("ocl", port=taper_ref.ports["o1"])   # cleave line, x = 0
+    c.add_port("o2", port=taper_ref.ports["o2"])    # interior WG side, x > 0
+
+    c.info.update(
+        dict(
+            coupler_type="positive_taper",
+            start_width=start_width,
+            end_width=end_width,
+            taper_length=L,
+            buffer_length=L_buf,
+        )
+    )
     return c
+
+@gf.cell_with_module_name
+def pos_taper_ec_with_anchor(
+    width: float | None = None,
+    start_width: float = 0.05,           # interior thin side
+    end_width: float = 2.5,              # cleave thick side
+    L: float = 200.0,
+    L_buf: float = 15.0,
+    dx: float = 0.25,
+    alpha: float = 4.0,
+    add_anchor: bool = True,
+    anchor_stub: float = 25.0,
+    anchor_size: Size = (6.0, 10.0),
+    cleave_marker_layer: LayerSpec | None = None,
+    xs_waveguide: CrossSectionSpec | None = "strip",
+) -> Component:
+    """Positive taper with cleave at x=0 and anchor on negative-x thick side."""
+    base = pos_taper_ec(
+        width=width,
+        start_width=start_width,
+        end_width=end_width,
+        L=L,
+        L_buf=L_buf,
+        xs_waveguide=xs_waveguide,
+        cleave_marker_layer=cleave_marker_layer,
+    )
+
+    if not add_anchor:
+        return base
+
+    c = gf.Component()
+    ref = c << base
+
+    end_xs = gf.get_cross_section(xs_waveguide, width=end_width)
+    anchor_xs = gf.get_cross_section(xs_waveguide, width=anchor_size[1])
+
+    anchor_xtrans = gf.path.transition(
+        cross_section1=end_xs,
+        cross_section2=anchor_xs,
+        width_type=gf.partial(_width_exp, alpha=alpha),
+        offset_type=gf.partial(_width_exp, alpha=alpha),
+    )
+
+    anchor_path = gf.path.straight(
+        length=anchor_stub,
+        npoints=max(int(anchor_stub / dx), 2),
+    )
+    anchor_taper_spec = gf.path.extrude_transition(anchor_path, anchor_xtrans)
+    anchor_spec = gf.c.straight(length=anchor_size[0], cross_section=anchor_xs)
+
+    anchor_taper = c.add_ref(anchor_taper_spec)
+    anchor = c.add_ref(anchor_spec)
+
+    # Build outward from cleave-side buffer port, then mirror to negative x
+   
+    if hasattr(anchor_taper, "dmirror"):
+        anchor_taper.dmirror(p1=(0, 0), p2=(0, 1))
+    else:
+        anchor_taper.mirror()
     
+    anchor_taper.connect("o1", ref.ports["o1"])
+
+    anchor.connect("o1", anchor_taper.ports["o2"])
+
+    c.add_port("o1", port=anchor.ports["o2"])
+    c.add_port("ocl", port=ref.ports["ocl"])
+    c.add_port("o2", port=ref.ports["o2"])
+
+    c.info.update(
+        dict(
+            coupler_type="positive_taper_with_anchor",
+            start_width=start_width,
+            end_width=end_width,
+            anchor_stub=anchor_stub,
+            anchor_size=anchor_size,
+        )
+    )
+    return c
 
 @gf.cell_with_module_name
 def two_stage_inverse_taper(
@@ -202,7 +330,6 @@ def two_stage_inverse_taper(
 
     return c
 
-
 # --- Variant with a cleave-side anchor (resist adhesion aid) ---
 @gf.cell_with_module_name
 def two_stage_inverse_taper_with_anchor(
@@ -277,7 +404,6 @@ def two_stage_inverse_taper_with_anchor(
     ))
     return c
 
-
 @gf.cell_with_module_name
 def butt_ec_with_anchor(
     L1: float = 1000,
@@ -290,7 +416,7 @@ def butt_ec_with_anchor(
     anchor_stub: float = 25.0,         # µm: expanding tether beyond the *buffer* (expected cleave line)
     anchor_size: Size = (6.0, 10.0),  # (width, height) of anchor pad, µm
     # Optional cleave marker layer (draw a hairline to visualize facet position)
-    cleave_marker_layer: LayerSpec | None = None,
+    cleave_marker_layer: LayerSpec | None = "MARKER",
     xs_waveguide : CrossSectionSpec | None = 'strip'
 ) -> Component:
     """TButt coupler with a small cleave‑side anchor pad.
@@ -337,6 +463,11 @@ def butt_ec_with_anchor(
     c.add_port(name="ocl", port=ref2.ports["o1"])
     c.add_port(name="o1", port=ref.ports["o1"])  # start side
     c.add_port(name="o2", port=ref.ports["o2"])  # facet side
+
+     # Draw optional cleave marker (vertical hairline)
+    facet_x = float(c.ports['ocl'].center[0])  # end of buffer (intended facet)
+    if cleave_marker_layer is not None:
+        c.add_polygon([(facet_x, -5.0), (facet_x, 5.0), (facet_x + 0.02, 5.0), (facet_x + 0.02, -5.0)], layer=cleave_marker_layer)
 
     c.info.update(dict(
         anchor_stub=anchor_stub,
@@ -765,44 +896,4 @@ def edge_coupler_array(
     c.info["fa_adhesive_keepout_positive"] = positive
 
     return c
-
-
-#TESTING ONLY - TODO: Remove unnecessary comments for production
-gf.gpdk.PDK.activate()
-
-edge_coupler_array_mesa_def = gf.partial(edge_coupler_array,
-        edge_coupler=two_stage_inverse_taper_with_anchor(cleave_marker_layer=(10,0)),
-        alignment_coupler=inverse_taper_1p5u_to_50nm_compact,  # or a special one
-        n=32,
-        n_alignment_loops=0,                     # ignored when alignment_pairs is given
-        alignment_pairs={"0": 0, "1": 30},
-        adhesive_keepout_layer="TE",
-        adhesive_keepout_margin=(250, 50),
-        adhesive_keepout_axis="x",
-        axis_reflection=True, 
-        widths=(0.8,1,1.2,1.4),
-        nc_ports=(3, 7, 12),)
-
-
-if __name__ == "__main__":
-
-    # c = two_stage_inverse_taper_with_anchor(start_width = 1.2, width=1.2, mid_width=1.2, tip_width=1.2)
-    # c = edge_coupler_array_mesa_def()
-    # c = edge_coupler_array(
-    #     edge_coupler=two_stage_inverse_taper_with_anchor,
-    #     alignment_coupler=edge_coupler_silicon_al,  # or a special one
-    #     n=32,
-    #     n_alignment_loops=0,                     # ignored when alignment_pairs is given
-    #     alignment_pairs={"0": 0, "1": 30},
-    #     adhesive_keepout_layer="TE",
-    #     adhesive_keepout_margin=(250, 50),
-    #     adhesive_keepout_axis="x",
-    #     axis_reflection=False)
-    c = butt_ec_with_anchor(L1=1000,
-                            L_buf=15,
-                            width=1.5,
-                            cleave_marker_layer=(10,0))
-        
-    c.show()
-    print(c.info)
 

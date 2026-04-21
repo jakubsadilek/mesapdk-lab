@@ -6,7 +6,7 @@ from collections import defaultdict
 import gdsfactory as gf
 from typing import Iterable
 
-from ekin_master_die import ekn_master_die_ds, edge_coupler_array_stph_but #,edge_coupler_array_stph_tap
+from ekin_master_die import ekn_master_die_ds, edge_coupler_array_stph_but, edge_coupler_array_stph_tap
 from cross_sections import xs_heater_metal_trench
 from heaters import straight_heater_offset_wg_90deg
 from ekin_master_die import xs_ekn300_te_IMGREV
@@ -771,7 +771,6 @@ def route_heater_signals_to_south_pads(
         allow_width_mismatch=True,
         allow_layer_mismatch=True,
         bend= gf.c.wire_corner45,
-        radius=0
     )
 
     return list(zip(heater_ports, pad_ports, strict=True))
@@ -1001,7 +1000,7 @@ if __name__ == "__main__":
 
     heater_locs = generate_heater_array(
         count = 7,
-        initial_loc=(-1150, -3050),
+        initial_loc=(-2100, -3050),
         step=(1250, 0),
         alternate=True,
     )
@@ -1009,7 +1008,7 @@ if __name__ == "__main__":
 
     heater_locs += generate_heater_array(
         count = 7,
-        initial_loc=(6450, 200),
+        initial_loc=(5500, 200),
         step=(-1250, 0),
         alternate=True,
         mirror_y=False,
@@ -1018,7 +1017,7 @@ if __name__ == "__main__":
 
     heater_locs += generate_heater_array(
         count = 6,
-        initial_loc=(-1000, 3450),
+        initial_loc=(-1950, 3450),
         step=(1250, 0),
         alternate=True,
         mirror_y=True
@@ -1075,10 +1074,10 @@ if __name__ == "__main__":
     #ekst_v2_brt_master(ext_grp_spacing=127).show()
     stephan_master_serpentine(
         master_die=master_die,
-        ec_array_def=edge_coupler_array_stph_but,
+        ec_array_def=edge_coupler_array_stph_tap,
         heater=heater_def,
         heater_loc=heater_locs,
-        route_turns_waypoints=((8600, -1425), (-9000, 1825)),
+        route_turns_waypoints=((9600, -1425), (-9600, 1825)),
         logo=None,
         label=None,
         logo_loc=(8500, -3650),

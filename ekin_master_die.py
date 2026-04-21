@@ -4,7 +4,7 @@ from polish_ruler import polish_ruler
 from dies import die_frame_mesa
 from gdsfactory.typings import LayerSpec
 from spirals import spiral_symmetric
-from couplers import edge_coupler_array, two_stage_inverse_taper_with_anchor, two_stage_inverse_taper, butt_ec_with_anchor
+from couplers import edge_coupler_array, two_stage_inverse_taper_with_anchor, two_stage_inverse_taper, butt_ec_with_anchor, pos_taper_ec_with_anchor
 
 from cross_sections import xs_ekn300_te_IMGREV
 
@@ -18,6 +18,7 @@ pdk.activate()
 
 ekn_tsitec = gf.partial(two_stage_inverse_taper_with_anchor, xs_waveguide = xs_ekn300_te_IMGREV, cleave_marker_layer = 'MARKER_NAV', tip_width = 0.3)
 ekn_buttec = gf.partial(butt_ec_with_anchor, xs_waveguide = xs_ekn300_te_IMGREV, cleave_marker_layer = 'MARKER_NAV', )
+#ekn_postap = gf.partial(pos_taper_ec,  xs_waveguide = xs_ekn300_te_IMGREV, cleave_marker_layer = 'MARKER_NAV', end_width = 256)
 
 label_txt = gf.partial(gf.components.text_rectangular, layer = "LABEL_SIN")
 polish_ruler_spec = gf.partial(polish_ruler, layer = 'LABEL_SIN', bboxLayer = 'KEEPOUT_DICING')
@@ -94,6 +95,31 @@ edge_coupler_array_ekn_def_3loops = gf.partial(edge_coupler_array,
 
 edge_coupler_array_stph_but = gf.partial(edge_coupler_array,
         edge_coupler=ekn_buttec,
+        alignment_coupler=ekn_tsitec,  # or a special one
+        n=7,
+        n_alignment_loops=0,                     # ignored when alignment_pairs is given
+        alignment_pairs={"0": 0, "1": 5},
+        adhesive_keepout_layer="KEEPOUT_GLUE",
+        adhesive_keepout_margin=(250, 50),
+        adhesive_keepout_axis="x",
+        axis_reflection=False, 
+        widths=(12,), 
+        text = label_txt,
+        nc_ports=(2,4,)
+)
+
+steph_tap = gf.partial(pos_taper_ec_with_anchor,
+    start_width=1.5,
+    end_width=256,
+    L=5000,
+    L_buf=20,
+    anchor_size=(20,350),
+    xs_waveguide = xs_ekn300_te_IMGREV, 
+    cleave_marker_layer = 'MARKER_NAV'
+)
+
+edge_coupler_array_stph_tap = gf.partial(edge_coupler_array,
+        edge_coupler=steph_tap,
         alignment_coupler=ekn_tsitec,  # or a special one
         n=7,
         n_alignment_loops=0,                     # ignored when alignment_pairs is given
