@@ -90,8 +90,8 @@ def straight_heater_offset_wg_90deg(
     via_stack_offset: Position | None = (0, -20),
     via_stack_offset_west: Position | None = None,
     via_stack_offset_east: Position | None = None,
-    via_stack_port_west: str = "e2",
-    via_stack_port_east: str = "e2",
+    via_stack_port_west: str = "mh_e2",
+    via_stack_port_east: str = "mh_e2",
     port_orientation1: int | None = None,
     port_orientation2: int | None = None,
     heater_taper_length: float = 5.0,
@@ -231,7 +231,7 @@ def straight_heater_offset_wg_90deg(
         if via_stack_port_west not in west_ref.ports:
             raise ValueError(
                 f"Port {via_stack_port_west!r} not found in via_stack_west ports: "
-                f"{list(west_ref.ports.keys())}"
+                f"{[p.name for p in west_ref.ports]}"
             )
 
         gf.routing.route_bundle_electrical(

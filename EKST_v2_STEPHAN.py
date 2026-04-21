@@ -16,6 +16,7 @@ from collections.abc import Sequence
 from gdsfactory.typings import Position
 
 from electrical import electrical_row_busbar
+from via_stacks import via_stack_multilayer
 
 @dataclass(frozen=True, slots=True)
 class HeaterPlacement:
@@ -31,7 +32,7 @@ class PlacedHeater:
 
 @dataclass(frozen=True, slots=True)
 class GroundRoutingSpec:
-    port_name: str = "E_e4"
+    port_name: str = "E_mh_e4"
     offset_abs: float = 200.0
     x_pad: float = 120.0
     trunk_side: str = "east"
@@ -58,6 +59,22 @@ class GroundRoutingSpec:
     collector_cross_section: gf.typings.CrossSectionSpec | None = None
     collector_width: float | None = None
     collector_target_port: str = "S29_e1"
+
+@dataclass(frozen=True, slots=True)
+class SignalRoutingSpec:
+    candidate_port_names: tuple[str, ...] = (
+        "m1_e1",
+        "m1_e2",
+        "m1_e3",
+        "m1_e4",
+    )
+    start_pad_index: int = 28
+    pad_port_suffix: str = "e1"
+    cross_section_route: gf.typings.CrossSectionSpec = "metal_routing"
+    route_width: float | None = None
+    layer_transitions: dict[str, gf.typings.ComponentSpec] | None = None
+    auto_taper: bool = True
+    separation: float = 40.0
 
 def generate_heater_array(
     count: int,
@@ -274,7 +291,7 @@ def place_gnd_busbars_by_mirror(
 def get_gnd_side_for_heater(
     ph: PlacedHeater,
     *,
-    gnd_port_name: str = "E_e4",
+    gnd_port_name: str = "E_mh_e4",
     y_tol: float = 1e-3,
 ) -> int:
     """Return +1 if the heater GND port is above the heater anchor, else -1."""
@@ -449,19 +466,26 @@ def place_gnd_via_bank(
         if trunk_port_name not in via_ref.ports:
             raise ValueError(
                 f"Port {trunk_port_name!r} not found on via_stack ports: "
-                f"{list(via_ref.ports.keys())}"
+                f"{[p.name for p in via_ref.ports]}"
+                
             )
         if collector_port_name not in via_ref.ports:
             raise ValueError(
                 f"Port {collector_port_name!r} not found on via_stack ports: "
-                f"{list(via_ref.ports.keys())}"
+                f"{[p.name for p in via_ref.ports]}"
             )
 
         # Move via so that the trunk-facing port sits at the target X and row Y
+        # via_ref.dmove(
+        #     origin=via_ref.ports[trunk_port_name].dcenter,
+        #     destination=(via_x, float(trunk.dcenter[1])),
+        # )
+
+        # Move via so that center sits at the target X and row Y
         via_ref.dmove(
-            origin=via_ref.ports[trunk_port_name].dcenter,
+            origin=via_ref.dcenter,
             destination=(via_x, float(trunk.dcenter[1])),
-        )
+)
 
         gf.routing.route_bundle_electrical(
             component=component,
@@ -477,6 +501,280 @@ def place_gnd_via_bank(
         collector_ports.append(via_ref.ports[collector_port_name])
 
     return collector_ports
+
+def route_gnd_collector_to_pad_legacy(
+    component: gf.Component,
+    collector_ports: list[gf.Port],
+    pad_port: gf.Port,
+    gnd: GroundRoutingSpec,
+) -> gf.ComponentReference:
+    """
+    Create a simple vertical collector spine through the via-bank ports and
+    connect it to the final pad.
+
+    Assumptions
+    -----------
+    - `collector_ports` are already on the collector side of the via stacks.
+    - They should all lie on (approximately) the same X.
+    - The collector is a first-pass simple solution in one layer/cross-section.
+      If this causes congestion later, replace it with a more constrained router.
+
+    Returns
+    -------
+    gf.ComponentReference
+        Reference to the collector spine.
+    """
+    if not collector_ports:
+        raise ValueError("collector_ports cannot be empty")
+
+    xs_collector_spec = (
+        gnd.collector_cross_section
+        or gnd.cross_section_route
+        or gnd.cross_section_tap
+        or gnd.cross_section_backbone
+    )
+
+    xs_collector = (
+        gf.get_cross_section(xs_collector_spec, width=gnd.collector_width)
+        if gnd.collector_width is not None
+        else gf.get_cross_section(xs_collector_spec, width=gnd.route_width)
+        if gnd.route_width is not None
+        else gf.get_cross_section(xs_collector_spec)
+    )
+
+    ports_sorted = sorted(collector_ports, key=lambda p: float(p.dcenter[1]))
+    collector_x = float(ports_sorted[0].dcenter[0])
+
+    # simple collector assumes all via outputs are placed on one common X
+    for p in ports_sorted[1:]:
+        if abs(float(p.dcenter[0]) - collector_x) > 1e-3:
+            raise ValueError(
+                "collector_ports are not aligned on a common X. "
+                "The simple collector helper assumes one via-bank X."
+            )
+
+    y_min_ports = min(float(p.dcenter[1]) for p in ports_sorted)
+    y_max_ports = max(float(p.dcenter[1]) for p in ports_sorted)
+    pad_y = float(pad_port.dcenter[1])
+
+    y_min = min(y_min_ports, pad_y)
+    y_max = max(y_max_ports, pad_y)
+
+    margin = max(20.0, float(xs_collector.width) / 2)
+    collector_length = (y_max - y_min) + 2 * margin
+    collector_bottom_y = y_min - margin
+
+    collector_ref = component.add_ref(
+        gf.components.straight(
+            length=collector_length,
+            cross_section=xs_collector,
+        )
+    )
+    collector_ref.drotate(90)
+    collector_ref.dmove(
+        origin=collector_ref.ports["e1"].dcenter,
+        destination=(collector_x, collector_bottom_y),
+    )
+
+    # The spine itself passes through the via-bank ports geometrically.
+    # We do not try to "route" each port to the spine again.
+    # We only need the final connection from the spine to the pad.
+    collector_bottom = collector_ref.ports["e1"]
+
+    # gf.routing.route_bundle_electrical(
+    #     component=component,
+    #     ports1=[collector_bottom],
+    #     ports2=[pad_port],
+    #     cross_section=xs_collector,
+    #     layer_transitions=gnd.layer_transitions,
+    #     auto_taper=gnd.auto_taper,
+    #     allow_width_mismatch=True,
+    #     allow_layer_mismatch=True,
+    # )
+
+    return collector_ref
+
+def route_gnd_collector_to_pad(
+    component: gf.Component,
+    collector_ports: list[gf.Port],
+    pad_port: gf.Port,
+    gnd: GroundRoutingSpec,
+) -> gf.ComponentReference:
+    """
+    Create a simple vertical collector spine only through the via-bank ports,
+    then route from the nearest spine end to the final pad.
+    """
+    if not collector_ports:
+        raise ValueError("collector_ports cannot be empty")
+
+    xs_collector_spec = (
+        gnd.collector_cross_section
+        or gnd.cross_section_route
+        or gnd.cross_section_tap
+        or gnd.cross_section_backbone
+    )
+
+    xs_collector = (
+        gf.get_cross_section(xs_collector_spec, width=gnd.collector_width)
+        if gnd.collector_width is not None
+        else gf.get_cross_section(xs_collector_spec, width=gnd.route_width)
+        if gnd.route_width is not None
+        else gf.get_cross_section(xs_collector_spec)
+    )
+
+    ports_sorted = sorted(collector_ports, key=lambda p: float(p.dcenter[1]))
+    collector_x = float(ports_sorted[0].dcenter[0])
+
+    # require common X for the simple vertical collector
+    for p in ports_sorted[1:]:
+        if abs(float(p.dcenter[0]) - collector_x) > 1e-3:
+            raise ValueError(
+                "collector_ports are not aligned on a common X. "
+                "The simple collector helper assumes one via-bank X."
+            )
+
+    y_min_ports = min(float(p.dcenter[1]) for p in ports_sorted)
+    y_max_ports = max(float(p.dcenter[1]) for p in ports_sorted)
+
+    margin = max(20.0, float(xs_collector.width) / 2)
+
+    # collector spine terminates at the via-bank only
+    collector_length = (y_max_ports - y_min_ports) + 2 * margin
+    collector_bottom_y = y_min_ports #+ margin /2
+    collector_top_y = y_max_ports + margin
+
+    collector_ref = component.add_ref(
+        gf.components.straight(
+            length=collector_length,
+            cross_section=xs_collector,
+        )
+    )
+    collector_ref.drotate(90)
+    collector_ref.dmove(
+        origin=collector_ref.ports["e1"].dcenter,
+        destination=(collector_x, collector_bottom_y),
+    )
+
+    collector_bottom = collector_ref.ports["e1"]
+    collector_top = collector_ref.ports["e2"]
+
+    # route from the closer end of the collector to the pad
+    pad_y = float(pad_port.dcenter[1])
+    if abs(pad_y - float(collector_bottom.dcenter[1])) <= abs(
+        pad_y - float(collector_top.dcenter[1])
+    ):
+        spine_end = collector_bottom
+    else:
+        spine_end = collector_top
+
+    gf.routing.route_bundle_electrical(
+        component=component,
+        ports1=[collector_bottom],
+        ports2=[pad_port],
+        cross_section=xs_collector,
+        layer_transitions=gnd.layer_transitions,
+        auto_taper=gnd.auto_taper,
+        allow_width_mismatch=True,
+        allow_layer_mismatch=True,
+    )
+
+    return collector_ref
+
+def _is_south_facing(port: gf.Port) -> bool:
+    orientation = int(round(float(port.orientation))) % 360
+    return orientation == 270
+
+def get_south_facing_port(
+    ref: gf.ComponentReference,
+    candidate_port_names: Sequence[str],
+) -> gf.Port:
+    candidates = [ref.ports[name] for name in candidate_port_names if name in ref.ports]
+
+    if not candidates:
+        raise ValueError(
+            "No candidate signal ports found. "
+            f"Requested={list(candidate_port_names)}, "
+            f"available={[p.name for p in ref.ports]}"
+        )
+
+    south_ports = [p for p in candidates if _is_south_facing(p)]
+
+    if len(south_ports) == 1:
+        return south_ports[0]
+
+    if len(south_ports) > 1:
+        raise ValueError(
+            "Multiple south-facing candidate ports found: "
+            f"{[(p.name, p.orientation) for p in south_ports]}"
+        )
+
+    raise ValueError(
+        "No south-facing candidate port found. "
+        f"Candidates={[(p.name, p.orientation) for p in candidates]}"
+    )
+
+def route_heater_signals_to_south_pads(
+    component: gf.Component,
+    placed_heaters: list[PlacedHeater],
+    master_die_ref: gf.ComponentReference,
+    signal: SignalRoutingSpec,
+) -> list[tuple[gf.Port, gf.Port]]:
+    if not placed_heaters:
+        return []
+
+    heater_ports = [
+        get_south_facing_port(ph.ref, signal.candidate_port_names)
+        for ph in placed_heaters
+    ]
+
+    # right -> left
+    heater_ports = sorted(
+        heater_ports,
+        key=lambda p: float(p.dcenter[0]),
+        reverse=True,
+    )
+
+    n = len(heater_ports)
+    last_pad_index = signal.start_pad_index - n + 1
+    if last_pad_index < 0:
+        raise ValueError(
+            f"Not enough south pads: need {n} ports starting from "
+            f"S{signal.start_pad_index:02d}_{signal.pad_port_suffix}"
+        )
+
+    pad_names = [
+        f"S{i:02d}_{signal.pad_port_suffix}"
+        for i in range(signal.start_pad_index, signal.start_pad_index - n, -1)
+    ]
+
+    missing = [name for name in pad_names if name not in master_die_ref.ports]
+    if missing:
+        raise ValueError(f"Missing target pad ports: {missing}")
+
+    pad_ports = [master_die_ref.ports[name] for name in pad_names]
+
+    xs_route = (
+        gf.get_cross_section(signal.cross_section_route, width=signal.route_width)
+        if signal.route_width is not None
+        else gf.get_cross_section(signal.cross_section_route)
+    )
+
+    gf.routing.route_bundle_electrical(
+        component=component,
+        ports1=heater_ports,
+        ports2=pad_ports,
+        cross_section=xs_route,
+        separation=signal.separation,
+        sort_ports=False,
+        layer_transitions=signal.layer_transitions,
+        auto_taper=signal.auto_taper,
+        allow_width_mismatch=True,
+        allow_layer_mismatch=True,
+        bend= gf.c.wire_corner45,
+        radius=0
+    )
+
+    return list(zip(heater_ports, pad_ports, strict=True))
 
 label_txt = gf.partial(gf.components.text_rectangular, layer = "LABEL_SIN")
 
@@ -507,6 +805,16 @@ def stephan_master_serpentine(
             tap_width=50.0,
             route_width=50.0,
             ),
+
+        sig_routing: SignalRoutingSpec = SignalRoutingSpec(
+            candidate_port_names = ('W_m1_e1', 'W_m1_e2', 'W_m1_e3', 'W_m1_e4'),
+            start_pad_index= 27,
+            pad_port_suffix= 'e1',
+            cross_section_route= gf.partial(gf.cross_section.metal_routing, layer = 'M1'),
+            route_width=25,
+            auto_taper=True, 
+            separation=25
+        )
 
 ) -> gf.Component:
     
@@ -580,7 +888,33 @@ def stephan_master_serpentine(
             gnd_routing,
         )
 
+        gnd_pad = md.ports[gnd_routing.collector_target_port]
 
+        collector_ref = route_gnd_collector_to_pad(
+            d,
+            gnd_collector_ports,
+            gnd_pad,
+            gnd_routing,
+        )
+
+        # signal_ports = []
+        # for ph in placed_heaters:
+        #     signal_port = get_port_facing_south(
+        #         ph.ref,
+        #         sig_routing.candidate_port_names,
+        #     )
+        #     signal_ports.append(signal_port)
+        #     #print(signal_port)
+
+        # signal_route = 
+
+        if sig_routing is not None:
+            route_heater_signals_to_south_pads(
+                component=d,
+                placed_heaters=placed_heaters,
+                master_die_ref=md,
+                signal=sig_routing,
+            )
 
 #TODO: This is plain hack ... if there would be odd number of al. loops it would fall apart
     for arr in md.cell.info['fiber_arrays']:
@@ -642,13 +976,32 @@ if __name__ == "__main__":
         pitch= 7.5,
     )
 
-    via_stack_heater = gf.partial(gf.c.via_stack, size=(50,50), vias=(None, None, via_m1), layers=('M1', 'SIN_ETCH','MH'), correct_size=True, layer_offsets=(0,2,0))
-    via_stack_collector = gf.partial(gf.c.via_stack, size=(200,200), vias=(None, None, via_m1), layers=('M1', 'SIN_ETCH','MH'), correct_size=True, layer_offsets=(0,2,0))
-    via_stack_gnd = gf.partial(gf.c.via_stack, vias = (None, None), size=(50,50), layers=('SIN_ETCH','MH'), correct_size=True, layer_offsets=(2,0))
+    via_stack_heater = gf.partial(via_stack_multilayer, 
+                                    size=(50,50), 
+                                    vias=(None, None, via_m1), 
+                                    layers=('M1', 'SIN_ETCH','MH'),
+                                    layer_to_port_orientations={
+                                        "M1": [180, 90, 0, -90],
+                                        "MH": [180, 90, 0, -90],}, 
+                                    correct_size=True, 
+                                    layer_offsets=(0,2,0))
+    
+
+    via_stack_collector = gf.partial(via_stack_multilayer, 
+                                    size=(200,200), 
+                                    vias=(None, None, via_m1), 
+                                    layers=('M1', 'SIN_ETCH','MH'),
+                                    layer_to_port_orientations={
+                                        "M1": [180, 90, 0, -90],
+                                        "MH": [180, 90, 0, -90],},  
+                                    correct_size=True, 
+                                    layer_offsets=(0,2,0))
+    
+    via_stack_gnd = gf.partial(via_stack_multilayer, vias = (None, None), size=(50,50), layers=('SIN_ETCH','MH'), correct_size=True, layer_offsets=(2,0))
 
     heater_locs = generate_heater_array(
         count = 7,
-        initial_loc=(-1000, -3050),
+        initial_loc=(-1150, -3050),
         step=(1250, 0),
         alternate=True,
     )
@@ -656,7 +1009,7 @@ if __name__ == "__main__":
 
     heater_locs += generate_heater_array(
         count = 7,
-        initial_loc=(6500, 200),
+        initial_loc=(6450, 200),
         step=(-1250, 0),
         alternate=True,
         mirror_y=False,
@@ -696,15 +1049,32 @@ if __name__ == "__main__":
         tap_width=50.0,
         route_width=50.0,
         via_stack=via_stack_collector,            # or a dedicated MH->M1 stack
-        via_stack_x= 7300.0,                   # example fixed X
-        via_stack_port_trunk="e1",             # MH-facing
-        via_stack_port_collector="e1",         # M1-facing
+        via_stack_x= 7250.0,                   # example fixed X
+        via_stack_port_trunk="mh_e1",             # MH-facing
+        via_stack_port_collector="m1_e4",         # M1-facing
         auto_taper=True,
+        collector_cross_section = gf.partial(gf.cross_section.metal_routing, layer = 'M1'),
+        collector_width=250,
+        collector_target_port = "S29_e1"
     )
 
+    sig_spec = SignalRoutingSpec(
+            candidate_port_names = ('W_m1_e1', 'W_m1_e2', 'W_m1_e3', 'W_m1_e4'),
+            start_pad_index= 28,
+            pad_port_suffix= 'e1',
+            cross_section_route= gf.partial(gf.cross_section.metal_routing, layer = 'M1'),
+            route_width=50,
+            auto_taper=True, 
+            separation=50
+        )
+
+    master_die = gf.partial(ekn_master_die_ds, pad=gf.c.pad(size=(350,350), layer="M1"))
+
+    #via_stack_collector().show()
 
     #ekst_v2_brt_master(ext_grp_spacing=127).show()
     stephan_master_serpentine(
+        master_die=master_die,
         ec_array_def=edge_coupler_array_stph_but,
         heater=heater_def,
         heater_loc=heater_locs,
@@ -715,6 +1085,7 @@ if __name__ == "__main__":
         bend_rad=1575,
         chip_id_label=None,
         gnd_routing =gnd_spec,
+        sig_routing= sig_spec
     ).show()
 
     #TASKs:
