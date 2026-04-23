@@ -55,7 +55,7 @@ def pos_taper_ec(
     L_buf: float = 15.0,                 # thick straight buffer BEFORE cleave
     xs_waveguide: CrossSectionSpec | None = "strip",
     cleave_marker_layer: LayerSpec | None = None,
-    width_type : WidthTypes | Callable = 'linear'
+    taper_width_type : WidthTypes | Callable = 'linear'
 ) -> Component:
     """Positive edge coupler with cleave line fixed at x=0.
 
@@ -93,7 +93,7 @@ def pos_taper_ec(
         length=L,
         cross_section1=thick_xs,   # cleave side
         cross_section2=thin_xs,    # interior side
-        width_type=width_type
+        width_type=taper_width_type
         )
     
     taper_ref = c.add_ref(taper_spec)
@@ -152,6 +152,7 @@ def pos_taper_ec_with_anchor(
     anchor_size: Size = (6.0, 10.0),
     cleave_marker_layer: LayerSpec | None = None,
     xs_waveguide: CrossSectionSpec | None = "strip",
+    taper_width_type : WidthTypes | Callable = 'linear'
 ) -> Component:
     """Positive taper with cleave at x=0 and anchor on negative-x thick side."""
     base = pos_taper_ec(
@@ -162,6 +163,7 @@ def pos_taper_ec_with_anchor(
         L_buf=L_buf,
         xs_waveguide=xs_waveguide,
         cleave_marker_layer=cleave_marker_layer,
+        taper_width_type = taper_width_type
     )
 
     if not add_anchor:
@@ -225,11 +227,12 @@ def two_stage_inverse_taper(
     start_width: float = 2.5,   # µm
     mid_width: float = 1.0,     # µm (0.8–1.0 typical)
     tip_width: float = 0.05,    # µm (drawn 50 nm, expect ~60–80 nm on wafer)
-    layer: LayerSpec = "WG",
     dx: float = 0.25,           # µm: sampling pitch along z; 0.25–0.5 is reasonable
-    alpha: float = 4.0,         # shape parameter for the slow taper (higher = gentler near tip),
+    # alpha: float = 4.0,         # shape parameter for the slow taper (higher = gentler near tip),
     xs_waveguide: CrossSectionSpec | None = 'strip',
     cleave_marker_layer: LayerSpec | None = None,
+    taper_width_type : WidthTypes | Callable = 'linear'
+    
 ) -> Component:
     """Two‑stage inverse taper for edge coupling.
 
@@ -245,7 +248,6 @@ def two_stage_inverse_taper(
         start_width: Input waveguide width at z=0.
         mid_width: Intermediate width after the fast pre‑taper (≈0.8–1.0 µm typical for Si3N4).
         tip_width: Drawn tip width at the facet (e.g., 0.05 µm ≈ 50 nm).
-        layer: GDS layer for the core polygon.
         dx: Longitudinal sampling step for polygon generation (smaller = smoother geometry).
         alpha: Controls how fast the exponential decays; 3–6 is a good range. Larger ⇒ gentler near tip.
         name: Optional component name.
@@ -291,8 +293,8 @@ def two_stage_inverse_taper(
     mid_xtrans = gf.path.transition(
         cross_section1=tip_xs,
         cross_section2=mid_xs,
-        width_type=gf.partial(_width_exp, alpha=alpha),
-        offset_type=gf.partial(_width_exp, alpha=alpha),
+        width_type=taper_width_type, #gf.partial(_width_exp, alpha=alpha),
+        offset_type=taper_width_type #gf.partial(_width_exp, alpha=alpha),
     )
     
     mid_sec_st = gf.path.straight(length=L2, npoints = max(int(L2 / dx), 2))
@@ -346,14 +348,16 @@ def two_stage_inverse_taper_with_anchor(
     tip_width: float = 0.1, #Changed to 100 nm to avoid underetching
     layer: LayerSpec = (1, 0),
     dx: float = 0.25,
-    alpha: float = 4.0,
+    #alpha: float = 4.0,
     # Anchor options
     add_anchor: bool = True,
     anchor_stub: float = 25.0,         # µm: expanding tether beyond the *buffer* (expected cleave line)
     anchor_size: Size = (6.0, 10.0),  # (width, height) of anchor pad, µm
     # Optional cleave marker layer (draw a hairline to visualize facet position)
     cleave_marker_layer: LayerSpec | None = None,
-    xs_waveguide : CrossSectionSpec | None = 'strip'
+    xs_waveguide : CrossSectionSpec | None = 'strip',
+    taper_width_type : WidthTypes | Callable = 'linear',
+    anchor_width_type : WidthTypes | Callable = 'linear'
 ) -> Component:
     """Two‑stage inverse taper with a small cleave‑side anchor pad.
 
@@ -368,8 +372,9 @@ def two_stage_inverse_taper_with_anchor(
     base = two_stage_inverse_taper(
         L1=L1, L2=L2, L_buf=L_buf,
         start_width=start_width, mid_width=mid_width, tip_width=tip_width,
-        layer=layer, dx=dx, alpha=alpha, xs_waveguide=xs_waveguide,
-        cleave_marker_layer=cleave_marker_layer, width=width
+        dx=dx, xs_waveguide=xs_waveguide,
+        cleave_marker_layer=cleave_marker_layer, width=width,
+        taper_width_type = taper_width_type
     )
     c = gf.Component()
     ref = c << base
@@ -382,8 +387,8 @@ def two_stage_inverse_taper_with_anchor(
     anchor_xtrans = gf.path.transition(
         cross_section1=tip_xs,
         cross_section2=anchor_xs,
-        width_type=gf.partial(_width_exp, alpha=alpha),
-        offset_type=gf.partial(_width_exp, alpha=alpha),
+        width_type=anchor_width_type, #gf.partial(_width_exp, alpha=alpha),
+        offset_type=anchor_width_type #gf.partial(_width_exp, alpha=alpha),
     )
 
     anchor_trsec_st = gf.path.straight(length=anchor_stub, npoints = max(int(anchor_stub / dx), 2))
