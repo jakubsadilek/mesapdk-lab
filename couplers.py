@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import gdsfactory as gf
 from gdsfactory.component import Component
-from gdsfactory.typings import ComponentSpec, Float2, LayerSpec, CrossSectionSpec, Size
+from gdsfactory.typings import ComponentSpec, Float2, LayerSpec, CrossSectionSpec, Size, WidthTypes
+from typing import Callable
 from gdsfactory.components.tapers.taper import taper
 import numpy as np
 import warnings
@@ -31,7 +32,7 @@ def _width_exp(t: float, y1: float, y2: float, alpha: float = 3.0) -> float:
 # Works by sampling the width profile and generating a polygon, so it does not
 # rely on any special gdsfactory transitions. Tested with gdsfactory 9.6.x style APIs.
 #
-# Units: microns
+# Units: microns``
 #
 # Example usage (inside a gdsfactory script):
 #   import gdsfactory as gf
@@ -54,6 +55,7 @@ def pos_taper_ec(
     L_buf: float = 15.0,                 # thick straight buffer BEFORE cleave
     xs_waveguide: CrossSectionSpec | None = "strip",
     cleave_marker_layer: LayerSpec | None = None,
+    width_type : WidthTypes | Callable = 'linear'
 ) -> Component:
     """Positive edge coupler with cleave line fixed at x=0.
 
@@ -91,7 +93,9 @@ def pos_taper_ec(
         length=L,
         cross_section1=thick_xs,   # cleave side
         cross_section2=thin_xs,    # interior side
-    )
+        width_type=width_type
+        )
+    
     taper_ref = c.add_ref(taper_spec)
 
     # Put taper thick-side port exactly at x=0
