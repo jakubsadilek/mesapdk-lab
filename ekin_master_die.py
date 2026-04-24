@@ -20,7 +20,7 @@ ekn_tsitec = gf.partial(two_stage_inverse_taper_with_anchor, xs_waveguide = xs_e
 ekn_buttec = gf.partial(butt_ec_with_anchor, xs_waveguide = xs_ekn300_te_IMGREV, cleave_marker_layer = 'MARKER_NAV', )
 #ekn_postap = gf.partial(pos_taper_ec,  xs_waveguide = xs_ekn300_te_IMGREV, cleave_marker_layer = 'MARKER_NAV', end_width = 256)
 
-label_txt = gf.partial(gf.components.text_rectangular, layer = "LABEL_SIN")
+label_txt = gf.partial(gf.components.text_rectangular, layer = "LABEL_M1")
 polish_ruler_spec = gf.partial(polish_ruler, layer = 'LABEL_SIN', bboxLayer = 'KEEPOUT_DICING')
 
 edge_coupler_array_ekn_def = gf.partial(edge_coupler_array,
@@ -110,12 +110,14 @@ edge_coupler_array_stph_but = gf.partial(edge_coupler_array,
 
 steph_tap = gf.partial(pos_taper_ec_with_anchor,
     start_width=1.5,
-    end_width=256,
+    end_width=300,
     L=5000,
     L_buf=20,
     anchor_size=(20,350),
     xs_waveguide = xs_ekn300_te_IMGREV, 
-    cleave_marker_layer = 'MARKER_NAV'
+    cleave_marker_layer = 'MARKER_NAV',
+    taper_width_type = "linear"
+
 )
 
 edge_coupler_array_stph_tap = gf.partial(edge_coupler_array,

@@ -14,14 +14,7 @@ LayerViews:
     layer_in_name: true
     hatch_pattern: left-hatched
     color: "#cc0000"
-  LABEL_SIN:
-    layer: [5, 0]
-    layer_in_name: true
-    frame_color: "#9999cc"
-    fill_color: "#80a8ff"
-    hatch_pattern: right-hatched
-    visible: false
-    width: 1
+
   OXIDE_ETCH:
     layer: [6, 0]
     layer_in_name: true
@@ -55,7 +48,72 @@ LayerViews:
     layer_in_name: true
     hatch_pattern: hollow
     color: "pink"
-
+  Labels:
+    group_members:
+      LABEL_SIN:
+        layer: [11, 0]
+        layer_in_name: true
+        frame_color: "#9999cc"
+        fill_color: "#80a8ff"
+        hatch_pattern: right-hatched
+        visible: false
+        width: 1
+      LABEL_WG:
+        layer: [10, 0]
+        layer_in_name: true
+        frame_color: "#9999cc"
+        fill_color: "#80a8ff"
+        hatch_pattern: right-hatched
+        visible: false
+        width: 1
+      LABEL_OXIDE:
+        layer: [12, 0]
+        layer_in_name: true
+        frame_color: "#9999cc"
+        fill_color: "#80a8ff"
+        hatch_pattern: right-hatched
+        visible: false
+        width: 1
+      LABEL_M0:
+        layer: [15, 0]
+        layer_in_name: true
+        frame_color: "#9999cc"
+        fill_color: "#80a8ff"
+        hatch_pattern: right-hatched
+        visible: false
+        width: 1
+      LABEL_M1:
+        layer: [16, 0]
+        layer_in_name: true
+        frame_color: "#9999cc"
+        fill_color: "#80a8ff"
+        hatch_pattern: right-hatched
+        visible: false
+        width: 1        
+      LABEL_M2:
+        layer: [17, 0]
+        layer_in_name: true
+        frame_color: "#9999cc"
+        fill_color: "#80a8ff"
+        hatch_pattern: right-hatched
+        visible: false
+        width: 1
+      LABEL_M3:
+        layer: [18, 0]
+        layer_in_name: true
+        frame_color: "#9999cc"
+        fill_color: "#80a8ff"
+        hatch_pattern: right-hatched
+        visible: false
+        width: 1  
+      LABEL_MH:
+        layer: [20, 0]
+        layer_in_name: true
+        frame_color: "#9999cc"
+        fill_color: "#80a8ff"
+        hatch_pattern: right-hatched
+        visible: false
+        width: 1  
   Metals:
     group_members:
       M0:
