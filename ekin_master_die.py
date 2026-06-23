@@ -18,6 +18,7 @@ pdk.activate()
 
 ekn_tsitec = gf.partial(two_stage_inverse_taper_with_anchor, xs_waveguide = xs_ekn300_te_IMGREV, cleave_marker_layer = 'MARKER_NAV', tip_width = 0.3)
 ekn_buttec = gf.partial(butt_ec_with_anchor, xs_waveguide = xs_ekn300_te_IMGREV, cleave_marker_layer = 'MARKER_NAV', )
+ekn_tsitec_narrow = gf.partial(two_stage_inverse_taper_with_anchor, xs_waveguide = xs_ekn300_te_IMGREV, cleave_marker_layer = 'MARKER_NAV', tip_width = 0.1)
 
 label_txt = gf.partial(gf.components.text_rectangular, layer = "LABEL_SIN")
 polish_ruler_spec = gf.partial(polish_ruler, layer = 'LABEL_SIN', bboxLayer = 'KEEPOUT_DICING')
@@ -35,6 +36,18 @@ edge_coupler_array_ekn_def = gf.partial(edge_coupler_array,
         widths=(0.75,1,1.25,1.5), 
         text = label_txt)
 
+edge_coupler_array_ekn_def_narrow = gf.partial(edge_coupler_array,
+        edge_coupler=ekn_tsitec_narrow,
+        alignment_coupler=ekn_tsitec_narrow,  # or a special one
+        n=32,
+        n_alignment_loops=0,                     # ignored when alignment_pairs is given
+        alignment_pairs={"0": 0, "1": 30},
+        adhesive_keepout_layer="KEEPOUT_GLUE",
+        adhesive_keepout_margin=(250, 50),
+        adhesive_keepout_axis="x",
+        axis_reflection=False, 
+        widths=(0.75,1,1.25,1.5), 
+        text = label_txt)
 
 edge_coupler_array_ekn_def_butt = gf.partial(edge_coupler_array,
         edge_coupler=ekn_buttec,
@@ -91,6 +104,18 @@ edge_coupler_array_ekn_def_3loops = gf.partial(edge_coupler_array,
         widths=(0.75,1,1.25,1.5), 
         text = label_txt   )
 
+edge_coupler_array_ekn_def_3loops_narrow = gf.partial(edge_coupler_array,
+        edge_coupler=ekn_tsitec_narrow,
+        alignment_coupler=ekn_tsitec_narrow,  # or a special one
+        n=32,
+        n_alignment_loops=0,                     # ignored when alignment_pairs is given
+        alignment_pairs={"0": 0, "1": 30,"3": 12},
+        adhesive_keepout_layer="KEEPOUT_GLUE",
+        adhesive_keepout_margin=(250, 50),
+        adhesive_keepout_axis="x",
+        axis_reflection=False, 
+        widths=(0.75,1,1.25,1.5), 
+        text = label_txt   )
 
 edge_coupler_array_stph_but = gf.partial(edge_coupler_array,
         edge_coupler=ekn_buttec,
