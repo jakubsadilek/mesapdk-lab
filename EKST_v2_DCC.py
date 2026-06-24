@@ -141,7 +141,8 @@ def ekst_v2_dcc_master(
                             radius=600,
                             sort_ports=True, 
                             separation=127,
-                            start_straight_length=1000)
+                            start_straight_length=1000,
+                            route_width= widths[0])
     
     route_b = gf.routing.route_bundle(component=d,
                             ports1=ports2[2:26],
@@ -151,7 +152,8 @@ def ekst_v2_dcc_master(
                             radius=600,
                             sort_ports=True, 
                             separation=127,
-                            start_straight_length=1000)
+                            start_straight_length=1000,
+                            route_width= widths[0])
 
 
 
