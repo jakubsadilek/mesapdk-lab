@@ -50,7 +50,7 @@ def resolve_imgrev_layers(
 
     return layer_core, layer_trench
 
-
+@gf.cell
 def postprocess_imgrev_trenches(
     component: Component,
     cross_section: CrossSectionSpec,
@@ -58,6 +58,7 @@ def postprocess_imgrev_trenches(
     layer_trench: LayerSpec | None = None,
     trench_section_names: tuple[str, ...] = ("trench_top", "trench_bot"),
     keep_other_layers: bool = True,
+    centered: bool = True,
 ) -> Component:
     """Converts normal trench-defined waveguide geometry into image-reversal-safe geometry.
 
@@ -117,6 +118,11 @@ def postprocess_imgrev_trenches(
     _copy_ports(out, src)
     _copy_metadata(out, src)
 
+    if centered:
+        dx = -out.dxmin - out.dxsize/2
+        dy = -(out.dymin + out.dymax) / 2
+        out.dmove((dx, dy))
+
     return out
 
 @gf.cell
@@ -128,6 +134,7 @@ def coupler_imgrev(
     cross_section: CrossSectionSpec = "xs_ekn300_te_IMGREV",
     layer_core: LayerSpec | None = None,
     layer_trench: LayerSpec | None = None,
+    centered: bool = True,
 ) -> Component:
     base = gf.components.coupler(
         gap=gap,
@@ -142,6 +149,7 @@ def coupler_imgrev(
         cross_section=cross_section,
         layer_core=layer_core,
         layer_trench=layer_trench,
+        centered = centered,
     )
 
 
@@ -157,6 +165,7 @@ def coupler_ring_imgrev(
     length_extension: float | None = None,
     layer_core: LayerSpec | None = None,
     layer_trench: LayerSpec | None = None,
+    centered: bool = True,
 ) -> Component:
     base = gf.components.coupler_ring(
         gap=gap,
@@ -174,4 +183,5 @@ def coupler_ring_imgrev(
         cross_section=cross_section,
         layer_core=layer_core,
         layer_trench=layer_trench,
+        centered = centered,
     )
