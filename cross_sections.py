@@ -8,7 +8,7 @@ from gdsfactory.typings import ComponentSpec, CrossSectionSpec, Position, LayerS
 from typing import Any
 
 #HACK
-MINRAD = 300
+MINRAD = 100
 
 __all__ = [
     "xs_heater_metal_trench",
@@ -26,7 +26,7 @@ def xs_ekn300_te_IMGREV(
     width: float = 0.75,
     offset: float = 0.0,
     layer: LayerSpec = "WG",
-    radius: float = MINRAD,
+    radius: float = 300,
     radius_min: float = MINRAD,
     width_trench: float = 15,
     layer_trench: gf.typings.LayerSpec = "SIN_ETCH",
