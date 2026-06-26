@@ -32,8 +32,10 @@ class LAYER(LayerMap):
     M0    = (40, 0)
     M1    = (41, 0)  
     M2    = (42, 0)
-    M3    = (43, 0)
+    MTOP = M3    = (43, 0)
     MH    = (47, 0)
+    HEATER = (47, 0)
+
 
     VIA0    = (50, 0)
     VIA1    = (51, 0)  

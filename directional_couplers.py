@@ -2,8 +2,54 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 import gdsfactory as gf
+import pandas as pd
 from gdsfactory.component import Component
 from gdsfactory.typings import ComponentSpec, CrossSectionSpec, LayerSpec
+
+
+class DirectionalCouplerLUT:
+    def __init__(self, csv_path: str):
+        self.df = pd.read_csv(csv_path)
+
+    def get_length_um(
+        self,
+        gap_nm: float,
+        width_um: float,
+        ratio: float,
+    ) -> float:
+        ratio_to_column = {
+            0.5: "L_50_um",
+            0.75: "L_75_um",
+            0.9: "L_90_um",
+        }
+
+        if ratio not in ratio_to_column:
+            raise ValueError(
+                f"Unsupported ratio {ratio}. "
+                f"Available: {tuple(ratio_to_column)}"
+            )
+
+        column = ratio_to_column[ratio]
+
+        row = self.df[
+            (self.df["gap_nm"] == gap_nm)
+            & (self.df["width_um"] == width_um)
+        ]
+
+        if row.empty:
+            raise ValueError(
+                f"No LUT entry for gap_nm={gap_nm}, width_um={width_um}."
+            )
+
+        if len(row) > 1:
+            raise ValueError(
+                f"Duplicate LUT entries for gap_nm={gap_nm}, width_um={width_um}."
+            )
+
+        return float(row.iloc[0][column])
+
+dc_lut = DirectionalCouplerLUT("static/directional_coupler_lut.csv")
+
 
 
 def _copy_ports(dst: Component, src: Component) -> None:

@@ -55,7 +55,7 @@ def array_with_y_span(
         component = gf.get_component(component_spec)
 
         x = i * pitch_x
-        y = 0.0 if n == 1 else -y_span * i / (n - 1)
+        y = 0.0 if n == 1 else y_span * i / (n - 1)
 
         ref = c << component
         ref.dcenter = (x, y)

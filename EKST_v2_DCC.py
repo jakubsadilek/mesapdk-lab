@@ -52,21 +52,21 @@ class DirectionalCouplerLUT:
         return float(row.iloc[0][column])
 
 dc_lut = DirectionalCouplerLUT("static/directional_coupler_lut.csv")
-
+#edge_coupler_array_ekn_def(widths =(0.75,)).show()
 
 print("Result:" + str(dc_lut.get_length_um(gap_nm=300, width_um=1.25, ratio = 0.5)))
 
 @gf.cell_with_module_name
 def ekst_v2_dcc_master(
         master_die: gf.typings.ComponentSpec = ekn_master_die_ds,
-        widths: tuple = (0.75,),
+        widths: tuple = (1.5,),
         gaps_nm: tuple = (300, 500, 750, 1000),
         ratios: tuple = (0.5, 0.75, 0.9),
         bend_rad: float = 600,
         cross_section:gf.typings.CrossSectionSpec = xs_ekn300_te_IMGREV,
         ec_array_def: gf.typings.ComponentSpec = edge_coupler_array_ekn_def,
         label_txt: gf.typings.ComponentSpec = label_txt,
-        label: str = "EKAJ_v0\nDCC",
+        label: str = "EKAJ_v0\nDCC W:1.5 um",
         chip_id_label: str = "EKAJ_v0 DCC\nW00_I00\nX20.0 Y20.0",
         ext_grp_spacing: float = 0,
         logo: gf.typings.ComponentSpec = None,
@@ -242,4 +242,4 @@ if __name__ == "__main__":
             center=True,
         )
 
-    ekst_v2_dcc_master(ext_grp_spacing=127, ec_array_def=edge_coupler_array_ekn_def_butt, logo=logo, logo_loc=(8750,-3650)).show()
+    ekst_v2_dcc_master(ext_grp_spacing=127, ec_array_def=edge_coupler_array_ekn_def, logo=logo, logo_loc=(8750,-3650)).show()
