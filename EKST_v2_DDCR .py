@@ -12,54 +12,9 @@ from resonators import ring_from_fixed_length_coupler
 label_txt = gf.partial(gf.components.text, layer = "LABEL_SIN", size = 50)
 
 
-# class DirectionalCouplerLUT:
-#     def __init__(self, csv_path: str):
-#         self.df = pd.read_csv(csv_path)
-
-#     def get_length_um(
-#         self,
-#         gap_nm: float,
-#         width_um: float,
-#         ratio: float,
-#     ) -> float:
-#         ratio_to_column = {
-#             0.5: "L_50_um",
-#             0.75: "L_75_um",
-#             0.9: "L_90_um",
-#         }
-
-#         if ratio not in ratio_to_column:
-#             raise ValueError(
-#                 f"Unsupported ratio {ratio}. "
-#                 f"Available: {tuple(ratio_to_column)}"
-#             )
-
-#         column = ratio_to_column[ratio]
-
-#         row = self.df[
-#             (self.df["gap_nm"] == gap_nm)
-#             & (self.df["width_um"] == width_um)
-#         ]
-
-#         if row.empty:
-#             raise ValueError(
-#                 f"No LUT entry for gap_nm={gap_nm}, width_um={width_um}."
-#             )
-
-#         if len(row) > 1:
-#             raise ValueError(
-#                 f"Duplicate LUT entries for gap_nm={gap_nm}, width_um={width_um}."
-#             )
-
-#         return float(row.iloc[0][column])
-
-# dc_lut = DirectionalCouplerLUT("static/directional_coupler_lut.csv")
-# #edge_coupler_array_ekn_def(widths =(0.75,)).show()
-
-# print("Result:" + str(dc_lut.get_length_um(gap_nm=300, width_um=1.25, ratio = 0.5)))
 
 @gf.cell_with_module_name
-def ekst_v2_dcr_master(
+def ekst_v2_2dcr_master(
         master_die: gf.typings.ComponentSpec = ekn_master_die_ds,
         # dc_coupler: gf.typings.ComponentSpec = coupler_imgrev,
         # ring_resonator: gf.typings.ComponentSpec =  ring_from_fixed_length_coupler,
@@ -72,8 +27,8 @@ def ekst_v2_dcr_master(
         cross_section:gf.typings.CrossSectionSpec = xs_ekn300_te_IMGREV,
         ec_array_def: gf.typings.ComponentSpec = edge_coupler_array_ekn_def,
         label_txt: gf.typings.ComponentSpec = label_txt,
-        label: str = "EKAJ_v0\nDCR W:1.5 um",
-        chip_id_label: str = "EKAJ_v0 DCC\nW00_I00\nX20.0 Y20.0",
+        label: str = "EKAJ_v0\n2DCR W:1.5 um",
+        chip_id_label: str = "EKAJ_v0 2DCR\nW00_I00\nX20.0 Y20.0",
         ext_grp_spacing: float = 0,
         logo: gf.typings.ComponentSpec = None,
         logo_loc: gf.typings.Position = None,        
@@ -125,7 +80,7 @@ def ekst_v2_dcr_master(
                                 layer_trench="SIN_ETCH")
                 
                 ring = ring_from_fixed_length_coupler(splitter=dc,
-                                   combiner=None,
+                                   combiner=dc,
                                    bend=ekn_bend,
                                    cross_section=xs_local,
                                    target_length=target_lenght,
@@ -133,6 +88,16 @@ def ekst_v2_dcr_master(
 
                 dcr_list.append(ring)
                 dcr_labels.append("{}: W:{:.2f} um G:{:.0f} nm\nR:{:.2f} L:{:.1f} um".format(len(dcr_labels), width, gap, ratio, target_lenght))
+
+    ring_arr_ref = d.add_ref(array_with_y_span(components=dcr_list,
+                      pitch_x=1050, 
+                      y_span=-2500, 
+                      component_rotation=90,
+                      label_rotation=270,
+                      label_offset=(0, 0),
+                      labels=dcr_labels,
+                      text = label_txt
+                      ))#.dmovey(origin=0, destination=1000) 
 
     # ring_arr = gf.grid(
     #     components = dcr_list,
@@ -144,47 +109,115 @@ def ekst_v2_dcr_master(
     # ring_arr_ref = d.add_ref(ring_arr)
     # ring_arr_ref.dmove(origin=ring_arr_ref.center, destination=(0,0))
 
-    ring_arr_ref = d.add_ref(array_with_y_span(components=dcr_list,
-                      pitch_x=1050, 
-                      y_span=-2000, 
-                      component_rotation=90,
-                      label_rotation=270,
-                      label_offset=(0, 0),
-                      labels=dcr_labels,
-                      text = label_txt
-                      ))
 
     # -------------------------------------------------------------------------
     # Routing 
     # -------------------------------------------------------------------------
 
-    dcr_ports_bottom = ring_arr_ref.ports.filter(regex = r'^\d+_o[1]$')
-    dcr_ports_top = ring_arr_ref.ports.filter(regex = r'^\d+_o[4]$')
+    dcr_ports_bottom = ring_arr_ref.ports.filter(regex = r'^\d+_o[12]$')
+    dcr_ports_top = ring_arr_ref.ports.filter(regex = r'^\d+_o[34]$')
 
+
+    # route_a = gf.routing.route_bundle(component=d,
+    #                         ports1=ports1[4:len(dcr_ports_bottom)+4],
+    #                         ports2=dcr_ports_bottom,
+    #                         cross_section=cross_section,
+    #                         bend=ekn_bend,
+    #                         radius=bend_rad,
+    #                         sort_ports=True, 
+    #                         separation=127,
+    #                         start_straight_length=300,
+    #                         route_width= widths[0])
+    
+    # start_port = len(ports2)-4
+    
+    # route_b = gf.routing.route_bundle(component=d,
+    #                     ports1=ports2[start_port-len(dcr_ports_top):start_port],
+    #                     ports2=dcr_ports_top,
+    #                     cross_section=cross_section,
+    #                     bend=ekn_bend,
+    #                     radius=bend_rad,
+    #                     sort_ports=True, 
+    #                     separation=127,
+    #                     #start_straight_length=1000,
+    #                     route_width= widths[0])
+    
 
     route_a = gf.routing.route_bundle(component=d,
-                            ports1=ports1[0:len(dcr_ports_bottom)],
-                            ports2=dcr_ports_bottom,
+                            ports1=ports1[len(ports1) - 8:],
+                            ports2=dcr_ports_bottom[0:8],
                             cross_section=cross_section,
                             bend=ekn_bend,
                             radius=bend_rad,
                             sort_ports=True, 
                             separation=127,
-                            #start_straight_length=1000,
+                            start_straight_length=300,
                             route_width= widths[0])
     
-    start_port = len(ports2)
+    route_a2 = gf.routing.route_bundle(component=d,
+                            ports1=ports1[len(ports1) - 16:len(ports1) - 8],
+                            ports2=dcr_ports_bottom[8:16],
+                            cross_section=cross_section,
+                            bend=ekn_bend,
+                            radius=bend_rad,
+                            sort_ports=True, 
+                            separation=127,
+                            start_straight_length=300,
+                            route_width= widths[0])
+    route_a3 = gf.routing.route_bundle(component=d,
+                            ports1=ports1[len(ports1) - 24:len(ports1) - 16],
+                            ports2=dcr_ports_bottom[16:24],
+                            cross_section=cross_section,
+                            bend=ekn_bend,
+                            radius=bend_rad,
+                            sort_ports=True, 
+                            separation=127,
+                            start_straight_length=300,
+                            route_width= widths[0])
+    start_port = len(ports2)-4
     
+    # route_b = gf.routing.route_bundle(component=d,
+    #                     ports1=ports2[start_port-len(dcr_ports_top):start_port],
+    #                     ports2=dcr_ports_top,
+    #                     cross_section=cross_section,
+    #                     bend=ekn_bend,
+    #                     radius=bend_rad,
+    #                     sort_ports=True, 
+    #                     separation=127,
+    #                     #start_straight_length=1000,
+    #                     route_width= widths[0])
+
     route_b = gf.routing.route_bundle(component=d,
-                        ports1=ports2[start_port-len(dcr_ports_top):start_port],
-                        ports2=dcr_ports_top,
-                        cross_section=cross_section,
-                        bend=ekn_bend,
-                        radius=bend_rad,
-                        sort_ports=True, 
-                        separation=127,
-                        #start_straight_length=1000,
-                        route_width= widths[0])
+                            ports1=ports2[len(ports1) - 8:],
+                            ports2=dcr_ports_top[0:8],
+                            cross_section=cross_section,
+                            bend=ekn_bend,
+                            radius=bend_rad,
+                            sort_ports=True, 
+                            separation=127,
+                            start_straight_length=300,
+                            route_width= widths[0])
+    
+    route_b2 = gf.routing.route_bundle(component=d,
+                            ports1=ports2[len(ports1) - 16:len(ports1) - 8],
+                            ports2=dcr_ports_top[8:16],
+                            cross_section=cross_section,
+                            bend=ekn_bend,
+                            radius=bend_rad,
+                            sort_ports=True, 
+                            separation=127,
+                            start_straight_length=300,
+                            route_width= widths[0])
+    route_b3 = gf.routing.route_bundle(component=d,
+                            ports1=ports2[len(ports1) - 24:len(ports1) - 16],
+                            ports2=dcr_ports_top[16:24],
+                            cross_section=cross_section,
+                            bend=ekn_bend,
+                            radius=bend_rad,
+                            sort_ports=True, 
+                            separation=127,
+                            start_straight_length=300,
+                            route_width= widths[0])
 
     #TODO: This is plain hack ... if there would be odd number of al. loops it would fall apart
     for arr in md.cell.info['fiber_arrays']:
@@ -241,4 +274,4 @@ if __name__ == "__main__":
             center=True,
         )
 
-    ekst_v2_dcr_master(ext_grp_spacing=127, ec_array_def=edge_coupler_array_ekn_def, logo=logo, logo_loc=(8750,-3650)).show()
+    ekst_v2_2dcr_master(ext_grp_spacing=127, ec_array_def=edge_coupler_array_ekn_def, logo=logo, logo_loc=(8750,-3650)).show()
