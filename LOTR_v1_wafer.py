@@ -78,7 +78,7 @@ DC2R_DEF=[]
 for i in range(0, len(widths)):
     DC2R_DEF.append(gf.partial(ekst_v2_2dcr_master, 
                                   widths = (widths[i],), 
-                                  label=f"{WAFER_ID.split('_')[0] + '_' + WAFER_ID.split('_')[1]}\n2DCR W{widths[i]:.2f}um",
+                                  label=f"{WAFER_ID.split('_')[0] + '_' + WAFER_ID.split('_')[1]}\nD2R W{widths[i]:.2f}um",
                                   chip_id_label = WAFER_ID.split('_')[-1],
                                   logo=logo, 
                                   logo_loc=(8750,-3650)))
