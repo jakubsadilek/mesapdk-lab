@@ -3,13 +3,14 @@ from gdsfactory.typings import CrossSectionSpec, ComponentSpec
 
 
 @gf.cell
-def ring_from_fixed_length_coupler(
+def ring_from_fixed_length_coupler_legacy(
     splitter: ComponentSpec = "mmi1x2",
     combiner: ComponentSpec | None = None,
     target_length: float = 2000,
     cross_section: CrossSectionSpec = "strip",
     cross_section_x_top: CrossSectionSpec | None = None,
     bend: ComponentSpec = "bend_euler",
+    centered: bool = True,
     **coupler_kwargs,
 ):
     c = gf.Component()
@@ -89,7 +90,7 @@ def ring_from_fixed_length_coupler(
     return c
 
 @gf.cell
-def ring_from_fixed_length_coupler2(
+def ring_from_fixed_length_coupler(
     splitter: ComponentSpec = "mmi1x2",
     combiner: ComponentSpec | None = None,
     target_length: float = 2000.0,
@@ -99,6 +100,7 @@ def ring_from_fixed_length_coupler2(
     minimum_section_length: float = 0.0,
     bend_length_key: str = "length",
     path_length_key: str = "path_length",
+    centered: bool = True,
     splitter_kwargs: dict | None = None,
     combiner_kwargs: dict | None = None,
 ):
@@ -261,16 +263,16 @@ def ring_from_fixed_length_coupler2(
             )
 
         if s_dc2_left is not None:
-            s_dc2_left.connect("o1", b2.ports["o2"])
+            s_dc2_left.connect("o1", b2.ports["o1"])
             dc2.connect("o1", s_dc2_left.ports["o2"])
         else:
-            dc2.connect("o1", b2.ports["o2"])
+            dc2.connect("o1", b2.ports["o1"])
 
         if s_dc2_right is not None:
-            s_dc2_right.connect("o1", dc2.ports["o2"])
-            b3.connect("o2", s_dc2_right.ports["o2"])
-        else:
-            b3.connect("o2", dc2.ports["o2"])
+            s_dc2_right.connect("o1", dc2.ports["o4"])
+        #     b3.connect("o2", s_dc2_right.ports["o2"])
+        # else:
+        #     b3.connect("o2", dc2.ports["o2"])
 
     else:
         # No top coupler.
@@ -282,31 +284,41 @@ def ring_from_fixed_length_coupler2(
         top_closure.connect("o1", b2.ports["o1"])
         #b3.connect("o2", top_closure.ports["o2"])
 
+    # Expose bus ports
+    if "o1" in dc1.ports:
+        c.add_port("o1", port=dc1.ports["o1"])
+    if "o4" in dc1.ports:
+        c.add_port("o4", port=dc1.ports["o4"])
+
+    if has_top_coupler:
+        if "o2" in dc2.ports:
+            c.add_port("o2", port=dc2.ports["o2"])
+        if "o3" in dc2.ports:
+            c.add_port("o3", port=dc2.ports["o3"])
 
 
+    if centered:
+        dx = -c.dxmin - c.dxsize / 2
+        dy = -(c.dymin + c.dymax) / 2
+        c.dmove((dx, dy))
+    
 
-    # # Expose bus ports
-    # if "o1" in dc1.ports:
-    #     c.add_port("o1", port=dc1.ports["o1"])
-    # if "o4" in dc1.ports:
-    #     c.add_port("o2", port=dc1.ports["o4"])
+    c.info["target_length"] = target_length
+    c.info["actual_length"] = target_length
+    c.info["vertical_length"] = vertical_length
 
-    # c.info["target_length"] = target_length
-    # c.info["actual_length"] = target_length
-    # c.info["vertical_length"] = vertical_length
+    c.info["bottom_coupler_path_length"] = dc1_path_length
+    c.info["top_coupler_path_length"] = dc2_path_length
+    c.info["bend_length"] = bend_length
 
-    # c.info["bottom_coupler_path_length"] = dc1_path_length
-    # c.info["top_coupler_path_length"] = dc2_path_length
-    # c.info["bend_length"] = bend_length
+    c.info["minimum_section_length"] = minimum_section_length
+    c.info["bottom_coupler_dxsize"] = dc1.dxsize
+    c.info["bottom_section_topup_total"] = dc1_section_topup_total
+    c.info["bottom_section_topup_each"] = dc1_section_topup_each
 
-    # c.info["minimum_section_length"] = minimum_section_length
-    # c.info["bottom_coupler_dxsize"] = dc1.dxsize
-    # c.info["bottom_section_topup_total"] = dc1_section_topup_total
-    # c.info["bottom_section_topup_each"] = dc1_section_topup_each
+    c.info["top_section_topup_total"] = dc2_section_topup_total
+    c.info["top_section_topup_each"] = dc2_section_topup_each
 
-    # c.info["top_section_topup_total"] = dc2_section_topup_total
-    # c.info["top_section_topup_each"] = dc2_section_topup_each
-
-    # c.info["fixed_length"] = fixed_length
+    c.info["fixed_length"] = fixed_length
 
     return c
