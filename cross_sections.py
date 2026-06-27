@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import gdsfactory as gf
 from gdsfactory.typings import LayerSpec
 
@@ -6,12 +8,13 @@ from gdsfactory.typings import ComponentSpec, CrossSectionSpec, Position, LayerS
 from typing import Any
 
 #HACK
-MINRAD = 300
+MINRAD = 100
 
 __all__ = [
     "xs_heater_metal_trench",
     "xs_ekn300_te_IMGREV",
 ]
+
 
 
 port_names_electrical: gf.typings.IOPorts = ("e1", "e2")
@@ -23,7 +26,7 @@ def xs_ekn300_te_IMGREV(
     width: float = 0.75,
     offset: float = 0.0,
     layer: LayerSpec = "WG",
-    radius: float = MINRAD,
+    radius: float = 300,
     radius_min: float = MINRAD,
     width_trench: float = 15,
     layer_trench: gf.typings.LayerSpec = "SIN_ETCH",
@@ -132,6 +135,7 @@ def xs_heater_metal(
         port_types=port_types,
         **kwargs,
     )
+
 
 CROSS_SECTIONS = {
     "xs_heater_metal_trench": xs_heater_metal_trench,

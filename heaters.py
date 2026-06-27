@@ -15,65 +15,6 @@ __all__ = [
 port_names_electrical: gf.typings.IOPorts = ("e1", "e2")
 port_types_electrical: gf.typings.IOPorts = ("electrical", "electrical")
 
-
-# @gf.xsection
-# def xs_heater_metal_trench(
-#     width: float = 2.5,
-#     layer: gf.typings.LayerSpec = "MH",
-#     layer_trench: gf.typings.LayerSpec = "SIN_ETCH",
-#     radius: float | None = None,
-#     port_names: gf.typings.IOPorts = port_names_electrical,
-#     port_types: gf.typings.IOPorts = port_types_electrical,
-#     width_trench: float = 2.0,
-#     offset: float = 0.0,
-#     **kwargs: Any,
-# ) -> CrossSection:
-#     """Return a heater metal cross-section with a surrounding trench section.
-
-#     Parameters
-#     ----------
-#     width:
-#         Width of the heater conductor.
-#     layer:
-#         Layer used for the heater conductor.
-#     layer_trench:
-#         Layer used for the trench surrounding the heater.
-#     radius:
-#         Default bend radius for this cross-section. If omitted, ``width`` is used.
-#     port_names:
-#         Port names for the two electrical ports.
-#     port_types:
-#         Port types for the electrical ports.
-#     width_trench:
-#         Lateral trench width added on each side of the heater.
-#     offset:
-#         Center offset of the main section. Kept for API compatibility.
-#     **kwargs:
-#         Forwarded to :func:`gf.cross_section.cross_section`.
-#     """
-#     radius = radius or width
-
-#     sections = (
-#         gf.Section(
-#             width=width + 2 * width_trench,
-#             offset=offset,
-#             layer=layer_trench,
-#             name="trench_metal",
-#         ),
-#     )
-
-#     return gf.cross_section.cross_section(
-#         width=width,
-#         offset=offset,
-#         layer=layer,
-#         radius=radius,
-#         port_names=port_names,
-#         port_types=port_types,
-#         sections=sections,
-#         **kwargs,
-#     )
-
-
 def _get_ports_for_orientation(
     ref: gf.ComponentReference,
     orientation: int | None,
@@ -140,6 +81,8 @@ def straight_heater_offset_wg_90deg(
     cross_section_heater: CrossSectionSpec = "xs_heater_metal",
     cross_section_waveguide: CrossSectionSpec = "strip",
     cross_section_heater_conn: CrossSectionSpec = "xs_heater_metal_trench",
+    layer_transitions: dict[str, Any] | None = None,
+    auto_taper: bool = True,
     via_stack: ComponentSpec | None = "via_stack_m1_mtop",
     via_stack_west: ComponentSpec | None = None,
     via_stack_east: ComponentSpec | None = None,
@@ -147,8 +90,8 @@ def straight_heater_offset_wg_90deg(
     via_stack_offset: Position | None = (0, -20),
     via_stack_offset_west: Position | None = None,
     via_stack_offset_east: Position | None = None,
-    via_stack_port_west: str = "e2",
-    via_stack_port_east: str = "e2",
+    via_stack_port_west: str = "mh_e2",
+    via_stack_port_east: str = "mh_e2",
     port_orientation1: int | None = None,
     port_orientation2: int | None = None,
     heater_taper_length: float = 5.0,
@@ -254,14 +197,18 @@ def straight_heater_offset_wg_90deg(
     heater_ref.dmovex(-straight_heater.dxsize / 2)
     heater_ref.dmovey(-(heater_wg_gap + heater_width / 2 + waveguide_width / 2))
 
-    corner_east.connect("e1", heater_ref.ports["e1"])
-    corner_west.connect("e2", heater_ref.ports["e2"])
+    corner_west.connect("e1", heater_ref.ports["e1"])
+    corner_east.connect("e2", heater_ref.ports["e2"])
 
     c.add_ports(wg_ref.ports)
 
-    layer_transitions = _build_layer_transitions(
-        cross_section_heater_conn=cross_section_heater_conn,
-        taper_length=heater_taper_length,
+    resolved_layer_transitions = (
+        layer_transitions
+        if layer_transitions is not None
+        else _build_layer_transitions(
+            cross_section_heater_conn=cross_section_heater_conn,
+            taper_length=heater_taper_length,
+        )
     )
 
     west_ref = None
@@ -276,26 +223,26 @@ def straight_heater_offset_wg_90deg(
             west_ref.dmove(
                 origin=west_ref.dcenter,
                 destination=(
-                    corner_west.ports["e1"].x + via_stack_offset_west[0],
-                    corner_west.ports["e1"].y + via_stack_offset_west[1],
+                    corner_west.ports["e2"].x + via_stack_offset_west[0],
+                    corner_west.ports["e2"].y + via_stack_offset_west[1],
                 ),
             )
 
         if via_stack_port_west not in west_ref.ports:
             raise ValueError(
                 f"Port {via_stack_port_west!r} not found in via_stack_west ports: "
-                f"{list(west_ref.ports.keys())}"
+                f"{[p.name for p in west_ref.ports]}"
             )
 
         gf.routing.route_bundle_electrical(
             component=c,
-            ports1=[corner_west.ports["e1"]],
+            ports1=[corner_west.ports["e2"]],
             ports2=[west_ref.ports[via_stack_port_west]],
             allow_width_mismatch=True,
             allow_layer_mismatch=True,
-            auto_taper=True,
+            auto_taper=auto_taper,
             cross_section=cross_section_heater_conn,
-            layer_transitions=layer_transitions,
+            layer_transitions=resolved_layer_transitions,
         )
 
     if via_stack_east is not None:
@@ -307,26 +254,26 @@ def straight_heater_offset_wg_90deg(
             east_ref.dmove(
                 origin=east_ref.dcenter,
                 destination=(
-                    corner_east.ports["e2"].x - via_stack_offset_east[0],
-                    corner_east.ports["e2"].y + via_stack_offset_east[1],
+                    corner_east.ports["e1"].x - via_stack_offset_east[0],
+                    corner_east.ports["e1"].y + via_stack_offset_east[1],
                 ),
             )
 
         if via_stack_port_east not in east_ref.ports:
             raise ValueError(
                 f"Port {via_stack_port_east!r} not found in via_stack_east ports: "
-                f"{list(east_ref.ports.keys())}"
+                f"{[p.name for p in east_ref.ports]}"
             )
 
         gf.routing.route_bundle_electrical(
             component=c,
-            ports1=[corner_east.ports["e2"]],
+            ports1=[corner_east.ports["e1"]],
             ports2=[east_ref.ports[via_stack_port_east]],
             allow_width_mismatch=True,
             allow_layer_mismatch=True,
-            auto_taper=True,
+            auto_taper=auto_taper,
             cross_section=cross_section_heater_conn,
-            layer_transitions=layer_transitions,
+            layer_transitions=resolved_layer_transitions,
         )
 
     if west_ref is not None:

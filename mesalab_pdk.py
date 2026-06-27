@@ -17,15 +17,25 @@ class LAYER(LayerMap):
     WG          = (1, 0)
     SIN_ETCH    = (3, 0)
     DEEP_ETCH   = (4, 0)
-    LABEL_SIN   = (5, 0)
+
     OXIDE_ETCH  = (6, 0)
 
+    LABEL_WG    = (10, 0)
+    LABEL_SIN   = (11, 0)
+    LABEL_OXIDE = (12, 0)
+    LABEL_M0   = (15, 0)
+    LABEL_M1   = (16, 0)
+    LABEL_M2   = (17, 0)
+    LABEL_M3   = (18, 0)
+    LABEL_MH   = (20, 0)
 
     M0    = (40, 0)
     M1    = (41, 0)  
     M2    = (42, 0)
-    M3    = (43, 0)
-    MH  = (47, 0)
+    MTOP = M3    = (43, 0)
+    MH    = (47, 0)
+    HEATER = (47, 0)
+
 
     VIA0    = (50, 0)
     VIA1    = (51, 0)  
