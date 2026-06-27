@@ -1,3 +1,4 @@
+from annotated_types import Len
 import gdsfactory as gf
 
 from ekin_master_die import ekn_master_die_ss, edge_coupler_array_ekn_def, edge_coupler_array_ekn_def_3loops
@@ -22,6 +23,7 @@ def ekst_v2_pul_master(
         chip_id_label: str = "EKAJ_v0 PUL\nW00_I00\nX20.0 Y20.0",
         logo: gf.typings.ComponentSpec = None,
         logo_loc: gf.typings.Position = None,
+        n_loops: int = 6,
         
 ) -> gf.Component:
 
@@ -41,7 +43,7 @@ def ekst_v2_pul_master(
 
     ekn_bend = gf.partial(gf.components.bend_euler, radius = bend_rad, cross_section = cross_section, width = width[0])
 
-    
+    lbl_offset = ec_array_def().settings["text_offset"]
     # -------------------------------------------------------------------------
     # Generate spirals
     # -------------------------------------------------------------------------
@@ -55,9 +57,10 @@ def ekst_v2_pul_master(
                                    bend=ekn_bend,
                                    cross_section=xs_local, 
 
-                                   n_loops=6,
+                                   n_loops=n_loops,
                                    spacing=50,
                                    opposite_ends=False))
+    
 
 
     
@@ -90,7 +93,7 @@ def ekst_v2_pul_master(
     ports=md.ports.filter(regex=r'^W01_(?!AL)\d+o2$')[::-1]#[len(aa.ports):]
     ports2 = ports[len(ports)-len(aa.ports):]
     #ekn_bend=gf.partial(gf.c.bend_euler, cross_section=xs_ekn300_te_IMGREV)
-
+    
     routes = gf.routing.route_bundle(
         component=d,
         ports1=aa.ports,
@@ -101,9 +104,31 @@ def ekst_v2_pul_master(
         sort_ports=True, show_waypoints=True,
         layer_marker=(25,0),
         radius=bend_rad
-
 )
+    print("Optical path lengths from spirals:")
+    spiral_length = []
+    for spiral in spirals:
+        print(spiral.info["length"])
+        spiral_length.append(spiral.info["length"])
+    route_length = []
+    print("Optical path lengths for routing:")
+    for route in routes:
+        route_length.append(route.length)
+        print(route.length)
+    print('Number of routes: {}'.format(len(routes)))
+    total_route_length = []
+    for i in range(len(route_length)//2):
+        total_route_length.append((route_length[2*i] + route_length[2*i+1])/1e3)
 
+
+    total_route_length[0] += spiral_length[3]
+    total_route_length[1] += spiral_length[2]
+    total_route_length[2] += spiral_length[4]
+    total_route_length[3] += spiral_length[1]
+    total_route_length[4] += spiral_length[0]
+    
+    for k in range(len(total_route_length)):
+        print("Port {}: {:.3f} mm".format(k, total_route_length[k]/1e3))       #in mm
 
 #TODO: This is plain hack ... if there would be odd number of al. loops it would fall apart
     for arr in md.cell.info['fiber_arrays']:
@@ -125,8 +150,6 @@ def ekst_v2_pul_master(
                 route_width=md.ports.filter(regex=rex0)[0].width,
                 #separation= 127
                                         )
-
-
     # -------------------------------------------------------------------------
     # Add the Chip name tag
     # -------------------------------------------------------------------------
@@ -159,10 +182,10 @@ if __name__ == "__main__":
     from logo_maker import svg_logo
 
     logo = svg_logo(
-            svg_path="./static/AQO_logo2.svg",
+            svg_path="./static/Loss.svg",
             layer=(5,0),
-            target_width_um=1500.0,   # final width in um
+            target_width_um=150.0,   # final width in um
             resolution=0.08,         # smaller -> smoother curves
             center=True,
         )
-    ekst_v2_pul_master(width = (1.25,),logo=logo, logo_loc=(-5000,-3000), cross_section=xs_ekn300_te_IMGREV).show()
+    ekst_v2_pul_master(width = (4,),logo=logo, logo_loc=(-5000,-3000), cross_section=xs_ekn300_te_IMGREV, n_loops=4).show()

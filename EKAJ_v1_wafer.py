@@ -11,10 +11,10 @@ from logo_maker import svg_logo
 from wafer_component import wafer_from_spec
 
 VERBOSE = True
-ADD_TILES = True
-EXPORT_FILES = True
+ADD_TILES = False
+EXPORT_FILES = False
 
-WAFER_ID = "EKAJ_v2_W01"
+WAFER_ID = "EKAJ_v2_W00"
 widths = (0.75, 1, 1.25, 1.5)
 
 
