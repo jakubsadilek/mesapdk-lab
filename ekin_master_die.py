@@ -17,6 +17,7 @@ pdk.activate()
 
 
 ekn_tsitec = gf.partial(two_stage_inverse_taper_with_anchor, xs_waveguide = xs_ekn300_te_IMGREV, cleave_marker_layer = 'MARKER_NAV', tip_width = 0.3)
+ekn_tsitec_narrow = gf.partial(two_stage_inverse_taper_with_anchor, xs_waveguide = xs_ekn300_te_IMGREV, cleave_marker_layer = 'MARKER_NAV', tip_width = 0.1)
 ekn_buttec = gf.partial(butt_ec_with_anchor, xs_waveguide = xs_ekn300_te_IMGREV, cleave_marker_layer = 'MARKER_NAV', )
 #ekn_postap = gf.partial(pos_taper_ec,  xs_waveguide = xs_ekn300_te_IMGREV, cleave_marker_layer = 'MARKER_NAV', end_width = 256)
 
