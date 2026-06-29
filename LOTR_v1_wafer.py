@@ -14,9 +14,9 @@ from wafer_component import wafer_from_spec
 
 VERBOSE = True
 ADD_TILES = True
-EXPORT_FILES = False
+EXPORT_FILES = True
 
-WAFER_ID = "LOTR_v0_W00"
+WAFER_ID = "LOTR_v0_W01"
 widths = (0.75, 1, 1.25, 1.5)
 
 
@@ -54,7 +54,21 @@ logo = svg_logo(
         center=True,
     )
 
+logo_mtg = svg_logo(
+        svg_path="./static/mind_the_gap.svg",
+        layer=gf.get_layer('LABEL_SIN'),
+        target_width_um=1000.0,   # final width in um
+        resolution=0.08,         # smaller -> smoother curves
+        center=True,
+    )
 
+logo_lotr = svg_logo(
+        svg_path="./static/One_Ring_inscription.svg",
+        layer=gf.get_layer('LABEL_SIN'),
+        target_width_um=2000.0,   # final width in um
+        resolution=0.08,         # smaller -> smoother curves
+        center=True,
+    )
 
 DCC_DEF=[]
 for i in range(0, len(widths)):
@@ -62,7 +76,7 @@ for i in range(0, len(widths)):
                                   widths = (widths[i],), 
                                   label=f"{WAFER_ID.split('_')[0] + '_' + WAFER_ID.split('_')[1]}\nDCC W{widths[i]:.2f}um",
                                   chip_id_label = WAFER_ID.split('_')[-1],
-                                  logo=logo, 
+                                  logo=logo_mtg, 
                                   logo_loc=(8750,-3650)))
 
 DCR_DEF=[]
@@ -71,16 +85,16 @@ for i in range(0, len(widths)):
                                   widths = (widths[i],), 
                                   label=f"{WAFER_ID.split('_')[0] + '_' + WAFER_ID.split('_')[1]}\nDCR W{widths[i]:.2f}um",
                                   chip_id_label = WAFER_ID.split('_')[-1],
-                                  logo=logo, 
+                                  logo=logo_lotr, 
                                   logo_loc=(8750,-3650)))
     
 DC2R_DEF=[]
 for i in range(0, len(widths)):
     DC2R_DEF.append(gf.partial(ekst_v2_2dcr_master, 
                                   widths = (widths[i],), 
-                                  label=f"{WAFER_ID.split('_')[0] + '_' + WAFER_ID.split('_')[1]}\n2DCR W{widths[i]:.2f}um",
+                                  label=f"{WAFER_ID.split('_')[0] + '_' + WAFER_ID.split('_')[1]}\n2DR W{widths[i]:.2f}um",
                                   chip_id_label = WAFER_ID.split('_')[-1],
-                                  logo=logo, 
+                                  logo=logo_lotr, 
                                   logo_loc=(8750,-3650)))
 
 
@@ -202,7 +216,8 @@ if ADD_TILES:
         (gf.get_layer_info("SIN_ETCH"), 20),
         (gf.get_layer_info('LABEL_SIN'), 20),
         (gf.get_layer_info('M1'), 20),
-        (gf.get_layer_info('KEEPOUT_DICING'), 20)
+        (gf.get_layer_info('KEEPOUT_DICING'), 20),
+        (gf.get_layer_info('LABEL_M1'), 20),
         
     ],
     x_space=20,
