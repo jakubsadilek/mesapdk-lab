@@ -784,6 +784,7 @@ def stephan_master_serpentine(
         bend_rad: float = 1000,
         cross_section:gf.typings.CrossSectionSpec = xs_ekn300_te_IMGREV,
         ec_array_def: gf.typings.ComponentSpec = edge_coupler_array_stph_but,
+        ec_array_defe: gf.typings.ComponentSpec = None,
         
         heater: gf.typings.ComponentSpec | None = None,
         heater_loc: list[HeaterPlacement] | None = None,
@@ -820,7 +821,11 @@ def stephan_master_serpentine(
     d = gf.Component()
 
     eca_w1 = ec_array_def(widths = (width,))
-    eca_e1 = ec_array_def(widths = (width,), axis_reflection = True)
+
+    if ec_array_defe == None:
+        eca_e1 = ec_array_def(widths = (width,), axis_reflection = True)
+    else:
+        eca_e1 = ec_array_defe(widths = (width,), axis_reflection = True)
 
     md = d.add_ref(master_die(
         electrical_sides=("S","N"),
@@ -1075,10 +1080,11 @@ if __name__ == "__main__":
     stephan_master_serpentine(
         master_die=master_die,
         ec_array_def=edge_coupler_array_stph_tap,
+        ec_array_defe=edge_coupler_array_stph_but,
         heater=heater_def,
         heater_loc=heater_locs,
         route_turns_waypoints=((9600, -1425), (-9600, 1825)),
-        logo=None,
+        logo=logo,
         label=None,
         logo_loc=(8500, -3650),
         bend_rad=1575,
