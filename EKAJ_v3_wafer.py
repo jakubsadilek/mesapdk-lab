@@ -4,19 +4,18 @@ from kfactory.utils.fill import fill_tiled
 from helpers import wafer_spec 
 from helpers.die_estimator import estimate_max_dies_on_wafer, plot_die_packing
 from flexgrid import flexgrid
-from EKST_v2_DCC import ekst_v2_dcc_master
-from EKST_v2_DCR import ekst_v2_dcr_master
-from EKST_v2_ABC import ekst_v2_2dcr_master
-
-from ekin_master_die import edge_coupler_array_ekn_def_butt, edge_coupler_array_ekn_def_butt_3loops, edge_coupler_array_ekn_def_centerskip
+from EKST_v2_BRT import ekst_v2_brt_master
+from EKST_v2_PUL import ekst_v2_pul_master
+from ekin_master_die import edge_coupler_array_ekn_def_butt, edge_coupler_array_ekn_def_butt_3loops, edge_coupler_array_ekn_def_3loops
+from ekin_master_die import edge_coupler_array_ekn_def_centerskip, edge_coupler_array_ekn_def_narrow, edge_coupler_array_ekn_def_3loops_narrow
 from logo_maker import svg_logo
 from wafer_component import wafer_from_spec
 
 VERBOSE = True
-ADD_TILES = True
-EXPORT_FILES = True
+ADD_TILES = False
+EXPORT_FILES = False
 
-WAFER_ID = "LOTR_v0_W01"
+WAFER_ID = "EKAJ_v3_W00"
 widths = (0.75, 1, 1.25, 1.5)
 
 
@@ -29,7 +28,7 @@ TIO2_THICKNESS = 0
 Getting die dimensions for wafer utilization estimation.
 and places for assignment of dies on wafer map.
 """
-my_die = ekst_v2_dcc_master()
+my_die = ekst_v2_pul_master()
 wafer = wafer_spec.make_semi_wafer_spec("100mm", edge_exclusion_um=3000, use_secondary_flat=False)
 result = estimate_max_dies_on_wafer(
     die=my_die,
@@ -48,84 +47,80 @@ Generating the logo that will be placed on the dies.
 """
 logo = svg_logo(
         svg_path="./static/AQO_logo2.svg",
-        layer=gf.get_layer('LABEL_SIN'),
+        layer=(5,0),
         target_width_um=1500.0,   # final width in um
         resolution=0.08,         # smaller -> smoother curves
         center=True,
     )
 
-logo_mtg = svg_logo(
-        svg_path="./static/mind_the_gap.svg",
-        layer=gf.get_layer('LABEL_SIN'),
-        target_width_um=1000.0,   # final width in um
-        resolution=0.08,         # smaller -> smoother curves
-        center=True,
-    )
 
-logo_lotr = svg_logo(
-        svg_path="./static/One_Ring_inscription.svg",
-        layer=gf.get_layer('LABEL_SIN'),
-        target_width_um=2000.0,   # final width in um
-        resolution=0.08,         # smaller -> smoother curves
-        center=True,
-    )
+BRT_NRW = gf.partial(ekst_v2_brt_master,ext_grp_spacing=127, 
+                     label = f"{WAFER_ID.split('_')[0] }\nBRT NRW",
+                     chip_id_label = WAFER_ID.split('_')[-1],
+                     logo=logo,
+                     ec_array_def=edge_coupler_array_ekn_def_narrow, 
+                     logo_loc=(8500,-3750))
 
-DCC_DEF=[]
-for i in range(0, len(widths)):
-    DCC_DEF.append(gf.partial(ekst_v2_dcc_master, 
-                                  widths = (widths[i],), 
-                                  label=f"{WAFER_ID.split('_')[0] + '_' + WAFER_ID.split('_')[1]}\nDCC W{widths[i]:.2f}um",
-                                  chip_id_label = WAFER_ID.split('_')[-1],
-                                  logo=logo_mtg, 
-                                  logo_loc=(8750,-3650)))
+BRT_TAP = gf.partial(ekst_v2_brt_master,
+                     ext_grp_spacing=127,
+                     ec_array_def=edge_coupler_array_ekn_def_butt, 
+                     label = f"{WAFER_ID.split('_')[0] }\nBRT TAP",
+                     chip_id_label = WAFER_ID.split('_')[-1],
+                     logo=logo, 
+                     logo_loc=(8500,-3750))
 
-DCR_DEF=[]
+PUL_TAP_NRW=[]
 for i in range(0, len(widths)):
-    DCR_DEF.append(gf.partial(ekst_v2_dcr_master, 
-                                  widths = (widths[i],), 
-                                  label=f"{WAFER_ID.split('_')[0] + '_' + WAFER_ID.split('_')[1]}\nDCR W{widths[i]:.2f}um",
+    PUL_TAP_NRW.append(gf.partial(ekst_v2_pul_master, 
+                                  width = (widths[i],), 
+                                  label=f"{WAFER_ID.split('_')[0] }\nPUL NRW\nW{widths[i]:.2f}",
                                   chip_id_label = WAFER_ID.split('_')[-1],
-                                  logo=logo_lotr, 
-                                  logo_loc=(8750,-3650)))
-    
-DC2R_DEF=[]
+                                  logo=logo,
+                                  bend_rad = 300,
+                                  ec_array_def=edge_coupler_array_ekn_def_3loops_narrow,
+                                  logo_loc=(-2500,-3000),
+                                  n_loops=4),
+                                  )
+
+PUL_TAP_DEF=[]
 for i in range(0, len(widths)):
-    DC2R_DEF.append(gf.partial(ekst_v2_2dcr_master, 
-                                  widths = (widths[i],), 
-                                  label=f"{WAFER_ID.split('_')[0] + '_' + WAFER_ID.split('_')[1]}\n2DR W{widths[i]:.2f}um",
+    PUL_TAP_DEF.append(gf.partial(ekst_v2_pul_master, 
+                                  width = (widths[i],),
+                                  ec_array_def=edge_coupler_array_ekn_def_3loops, 
+                                  label=f"{WAFER_ID.split('_')[0] }\nPUL TAP\nW{widths[i]:.2f}",
                                   chip_id_label = WAFER_ID.split('_')[-1],
-                                  logo=logo_lotr, 
-                                  logo_loc=(8750,-3650)))
+                                  logo=logo, 
+                                  logo_loc=(-3000,-3000)))
 
 
 """
 Placement of dies on wafer map.
 Currently done manually, in future might be automated. 
 """
-assign_array[(0, -3)] = DCC_DEF[3]
-assign_array[(1, -3)] = DCC_DEF[2]
-assign_array[(0, -2)] = DCC_DEF[1]
-assign_array[(1, -2)] = DCC_DEF[0]
-assign_array[(-1, -1)] = DCR_DEF[0]
-assign_array[(0, -1)] = DC2R_DEF[0]
-assign_array[(1, -1)] = DC2R_DEF[1]
-assign_array[(2, -1)] = DCR_DEF[3]
-assign_array[(-1, 0)] = DCR_DEF[1]
-assign_array[(0, 0)] = DC2R_DEF[2]
-assign_array[(1, 0)] = DC2R_DEF[3]
-assign_array[(2, 0)] = DCR_DEF[2]
-assign_array[(-1, 1)] = DCR_DEF[2]
-assign_array[(0, 1)] = DC2R_DEF[0]
-assign_array[(1, 1)] = DC2R_DEF[1]
-assign_array[(2, 1)] = DCR_DEF[1]
-assign_array[(-1, 2)] = DCR_DEF[3]
-assign_array[(0, 2)] = DC2R_DEF[2]
-assign_array[(1, 2)] = DC2R_DEF[3]
-assign_array[(2, 2)] = DCR_DEF[0]
-assign_array[(0, 3)] = DCC_DEF[0]
-assign_array[(1, 3)] = DCC_DEF[1]
-assign_array[(0, 4)] = DCC_DEF[2]
-assign_array[(1, 4)] = DCC_DEF[3]
+assign_array[(0, -3)] = None
+assign_array[(1, -3)] = None
+assign_array[(0, -2)] = None
+assign_array[(1, -2)] = None
+assign_array[(-1, -1)] = None
+assign_array[(0, -1)] = BRT_NRW
+assign_array[(1, -1)] = BRT_NRW
+assign_array[(2, -1)] = None
+assign_array[(-1, 0)] = PUL_TAP_NRW[0]
+assign_array[(0, 0)] = PUL_TAP_NRW[1]
+assign_array[(1, 0)] = BRT_NRW
+assign_array[(2, 0)] = PUL_TAP_NRW[2]
+assign_array[(-1, 1)] = PUL_TAP_NRW[2]
+assign_array[(0, 1)] = BRT_TAP
+assign_array[(1, 1)] = PUL_TAP_NRW[3]
+assign_array[(2, 1)] = PUL_TAP_NRW[1]
+assign_array[(-1, 2)] = None
+assign_array[(0, 2)] = PUL_TAP_NRW[0]
+assign_array[(1, 2)] = PUL_TAP_NRW[3]
+assign_array[(2, 2)] = None
+assign_array[(0, 3)] = None
+assign_array[(1, 3)] = None
+assign_array[(0, 4)] = None
+assign_array[(1, 4)] = None
 
 
 for die in assign_array:
@@ -167,7 +162,7 @@ tio2_label = wlabel_text(size=750,
 label_block = flexgrid(components=(
                                         
                                         pecvd_label,
-                                        tio2_label,
+                                        # tio2_label,
                                         teos_label,
                                         t_label,
                                         wafer_label
@@ -197,36 +192,32 @@ for inst in wafer_filled.insts:
 
 """ Fill the wafer with a grid of tiles for better etch uniformity
 """
+fc = gf.Component()
+fc.add_ref(component=gf.components.rectangle(size=(50,50), layer=(71,0)))
 
-
-
+if VERBOSE:
+     print()
 
 if ADD_TILES:
-    if VERBOSE:
-        print("Tiling started at {}".format(gf.get_layer_info("WAFER")))
-    fc = gf.components.rectangle(size=(20,20), layer="TILES_SIN")
     fill_tiled(
     wafer_filled,
     fc,
-    [(gf.get_layer_info("WAFER"), 0)],
+    [(kf.kdb.LayerInfo(99, 0), 0)],
     exclude_layers=[
-        (gf.get_layer_info("KEEPOUT_WAFER"), 20),
-        (gf.get_layer_info("WG"), 20),
-        (gf.get_layer_info("M2"), 20),
-        (gf.get_layer_info("SIN_ETCH"), 20),
-        (gf.get_layer_info('LABEL_SIN'), 20),
-        (gf.get_layer_info('M1'), 20),
-        (gf.get_layer_info('KEEPOUT_DICING'), 20),
-        (gf.get_layer_info('LABEL_M1'), 20),
+        (kf.kdb.LayerInfo(99, 500), 20),
+        (kf.kdb.LayerInfo(1, 0), 20),
+        (kf.kdb.LayerInfo(49, 0), 20),
+        (kf.kdb.LayerInfo(3, 6), 20),
+        (kf.kdb.LayerInfo(5, 0), 20),
+        (kf.kdb.LayerInfo(41, 0), 20),
+        (kf.kdb.LayerInfo(42, 0), 20),
+        (kf.kdb.LayerInfo(204, 0), 20)
         
     ],
-    x_space=20,
-    y_space=20,
-    multi=True, 
-    )  
-
-    if VERBOSE:
-        print("Tiling finished")
+    x_space=50,
+    y_space=50,
+    multi=True,
+)
 
 
 """Exporting the final GDS file and OAS file
