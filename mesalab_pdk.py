@@ -71,7 +71,8 @@ class LAYER(LayerMap):
     KEEPOUT_M3    = (223, 0)
     KEEPOUT_SIN   = (230, 0)
     KEEPOUT_DICING = (240, 0)
-    KEEPOUT_GLUE  = (250, 0)      
+    KEEPOUT_GLUE  = (250, 0)
+    KEEPOUT_MARKERS = (260, 0)      
 
     LABEL_LOGO = (100, 0)
 
