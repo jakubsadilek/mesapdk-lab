@@ -769,6 +769,241 @@ def mla150_alignment_marker(
 
     return component
 
+@gf.cell
+def lithography_overlay_marker(
+    layer1: LayerSpec,
+    layer2: LayerSpec,
+    fine_offset_per_notch: float = 0.05,
+    coarse_offset_per_notch: float = 0.2,
+    notch_size: tuple[float, float] = (1.0, 5.0),
+    notch_spacing: float = 2.0,
+    num_notches: int = 21,
+    row_spacing: float = 0.0,
+    fine_caliper_positions: tuple[
+        tuple[float, float],
+        tuple[float, float],
+    ] = (
+        (-300.0, 330.0),
+        (-330.0, 300.0),
+    ),
+    coarse_caliper_positions: tuple[
+        tuple[float, float],
+        tuple[float, float],
+    ] = (
+        (300.0, -330.0),
+        (330.0, -300.0),
+    ),
+    fine_box_position: tuple[float, float] = (300.0, 300.0),
+    coarse_box_position: tuple[float, float] = (-300.0, -300.0),
+    fine_box_settings: Mapping[str, Any] | None = None,
+    coarse_box_settings: Mapping[str, Any] | None = None,
+    label: str | None = None,
+    text_factory: ComponentSpec = gf.components.text,
+    label_position: tuple[float, float] = (0.0, -360.0),
+    label_layer: LayerSpec | None = None,
+) -> gf.Component:
+    """Creates a complete two-layer lithography overlay marker.
+
+    The component contains:
+
+    - fine horizontal and vertical lithography calipers;
+    - coarse horizontal and vertical lithography calipers;
+    - fine box-in-box target;
+    - coarse box-in-box target;
+    - optional label.
+
+    Parameters
+    ----------
+    layer1:
+        Alignment-marker layer from the first exposure.
+    layer2:
+        Overlay layer from the second exposure.
+    fine_offset_per_notch:
+        Vernier increment of the fine calipers.
+    coarse_offset_per_notch:
+        Vernier increment of the coarse calipers.
+    notch_size:
+        GDSFactory caliper notch dimensions.
+    notch_spacing:
+        Physical pitch-related separation between caliper notches.
+    num_notches:
+        Number of caliper notches.
+    row_spacing:
+        Separation between the two caliper rows.
+    fine_caliper_positions:
+        ``(horizontal_position, vertical_position)`` for the fine set.
+    coarse_caliper_positions:
+        ``(horizontal_position, vertical_position)`` for the coarse set.
+    fine_box_position:
+        Centre position of the fine box-in-box target.
+    coarse_box_position:
+        Centre position of the coarse box-in-box target.
+    fine_box_settings:
+        Optional overrides passed to the fine ``box_in_box`` target.
+    coarse_box_settings:
+        Optional overrides passed to the coarse ``box_in_box`` target.
+    label:
+        Optional text string.
+    text_factory:
+        Text-component factory accepting ``text`` and ``layer``.
+    label_position:
+        Centre position of the label.
+    label_layer:
+        Label layer. Defaults to ``layer1``.
+    """
+    component = gf.Component()
+
+    if fine_offset_per_notch <= 0:
+        raise ValueError(
+            "fine_offset_per_notch must be positive."
+        )
+
+    if coarse_offset_per_notch <= 0:
+        raise ValueError(
+            "coarse_offset_per_notch must be positive."
+        )
+
+    if fine_offset_per_notch >= coarse_offset_per_notch:
+        raise ValueError(
+            "fine_offset_per_notch must be smaller than "
+            "coarse_offset_per_notch."
+        )
+
+    if len(fine_caliper_positions) != 2:
+        raise ValueError(
+            "fine_caliper_positions must contain horizontal and vertical "
+            "positions."
+        )
+
+    if len(coarse_caliper_positions) != 2:
+        raise ValueError(
+            "coarse_caliper_positions must contain horizontal and vertical "
+            "positions."
+        )
+
+    # ------------------------------------------------------------------
+    # Fine and coarse two-layer calipers
+    # ------------------------------------------------------------------
+
+    fine_caliper = gf.components.litho_calipers(
+        notch_size=notch_size,
+        notch_spacing=notch_spacing,
+        num_notches=num_notches,
+        offset_per_notch=fine_offset_per_notch,
+        row_spacing=row_spacing,
+        layer1=layer1,
+        layer2=layer2,
+    )
+
+    coarse_caliper = gf.components.litho_calipers(
+        notch_size=notch_size,
+        notch_spacing=notch_spacing,
+        num_notches=num_notches,
+        offset_per_notch=coarse_offset_per_notch,
+        row_spacing=row_spacing,
+        layer1=layer1,
+        layer2=layer2,
+    )
+
+    fine_horizontal = component.add_ref(fine_caliper)
+    fine_horizontal.dcenter = fine_caliper_positions[0]
+
+    fine_vertical = component.add_ref(fine_caliper)
+    fine_vertical.drotate(90)
+    fine_vertical.dcenter = fine_caliper_positions[1]
+
+    coarse_horizontal = component.add_ref(coarse_caliper)
+    coarse_horizontal.drotate(180)
+    coarse_horizontal.dcenter = coarse_caliper_positions[0]
+
+    coarse_vertical = component.add_ref(coarse_caliper)
+    coarse_vertical.drotate(270)
+    coarse_vertical.dcenter = coarse_caliper_positions[1]
+
+    # ------------------------------------------------------------------
+    # Fine and coarse box-in-box targets
+    # ------------------------------------------------------------------
+
+    default_fine_box_settings: dict[str, Any] = {
+        "outer_size": 40.0,
+        "inner_size": 16.0,
+        "outer_width": 2.0,
+        "inner_width": 2.0,
+    }
+
+    default_coarse_box_settings: dict[str, Any] = {
+        "outer_size": 100.0,
+        "inner_size": 40.0,
+        "outer_width": 4.0,
+        "inner_width": 4.0,
+    }
+
+    if fine_box_settings:
+        forbidden = {"layer1", "layer2"}.intersection(
+            fine_box_settings
+        )
+        if forbidden:
+            raise ValueError(
+                "Do not provide layer1 or layer2 in fine_box_settings."
+            )
+
+        default_fine_box_settings.update(fine_box_settings)
+
+    if coarse_box_settings:
+        forbidden = {"layer1", "layer2"}.intersection(
+            coarse_box_settings
+        )
+        if forbidden:
+            raise ValueError(
+                "Do not provide layer1 or layer2 in coarse_box_settings."
+            )
+
+        default_coarse_box_settings.update(coarse_box_settings)
+
+    fine_box = box_in_box(
+        layer1=layer1,
+        layer2=layer2,
+        **default_fine_box_settings,
+    )
+
+    coarse_box = box_in_box(
+        layer1=layer1,
+        layer2=layer2,
+        **default_coarse_box_settings,
+    )
+
+    fine_box_ref = component.add_ref(fine_box)
+    fine_box_ref.dcenter = fine_box_position
+
+    coarse_box_ref = component.add_ref(coarse_box)
+    coarse_box_ref.dcenter = coarse_box_position
+
+    # ------------------------------------------------------------------
+    # Optional label
+    # ------------------------------------------------------------------
+
+    if label is not None:
+        resolved_label_layer = (
+            layer1 if label_layer is None else label_layer
+        )
+
+        text_component = gf.get_component(
+            text_factory,
+            text=label,
+            layer=resolved_label_layer,
+        )
+
+        text_ref = component.add_ref(text_component)
+        text_ref.dcenter = label_position
+
+    component.info["marker_type"] = "lithography_overlay"
+    component.info["layer1"] = str(layer1)
+    component.info["layer2"] = str(layer2)
+    component.info["fine_offset_per_notch"] = fine_offset_per_notch
+    component.info["coarse_offset_per_notch"] = coarse_offset_per_notch
+
+    return component
+
 ekst_ebl_marker_arr = gf.partial(
     ebpg_marker_array,
     marker_side=20,
