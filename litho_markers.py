@@ -13,6 +13,8 @@ __all__ = [
     "ekst_ebl_marker_arr",
     "ekst_ebl_pam_marker_arr",
     "ekst_mla150_alignment_marker",
+    "mla150_overlay_marker",
+    "ekst_overlay_marker"
 ]
 
 
@@ -770,7 +772,7 @@ def mla150_alignment_marker(
     return component
 
 @gf.cell
-def lithography_overlay_marker(
+def mla150_overlay_marker(
     layer1: LayerSpec,
     layer2: LayerSpec,
     fine_offset_per_notch: float = 0.05,
@@ -1033,4 +1035,18 @@ ekst_mla150_alignment_marker = gf.partial(
     marker_layer="MH",
     boundary_layer="KEEPOUT_MARKERS",
     boundary_margin=20,
+)
+
+ekst_overlay_marker = gf.partial(
+    mla150_overlay_marker,
+    fine_offset_per_notch=0.05,
+    coarse_offset_per_notch=0.2,
+    notch_size=(1.0, 5.0),
+    notch_spacing=2.0,
+    num_notches=21,
+    text_factory=gf.partial(
+        gf.components.text,
+        size=20,
+        justify="center",
+    ),
 )
