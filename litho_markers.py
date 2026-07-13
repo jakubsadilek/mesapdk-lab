@@ -14,7 +14,7 @@ __all__ = [
     "ekst_ebl_pam_marker_arr",
     "ekst_mla150_alignment_marker",
     "mla150_overlay_marker",
-    "ekst_overlay_marker"
+    "ekst_mla150_overlay_marker"
 ]
 
 
@@ -797,125 +797,207 @@ def mla150_overlay_marker(
     label_gap: float = 15.0,
     keepout_layer: LayerSpec | None = None,
     keepout_margin: float | tuple[float, float] = 10.0,
+    label_keepout_margin: float | tuple[float, float] = 5.0,
 ) -> gf.Component:
-    """Creates a complete two-exposure overlay-alignment marker.
+    """Creates a complete MLA150 two-exposure overlay marker.
 
     The component contains:
 
     - one central MLA150 alignment marker on ``layer1``;
-    - fine X/Y two-layer lithography calipers;
-    - coarse X/Y two-layer lithography calipers;
-    - fine and coarse box-in-box targets;
-    - an optional label;
-    - an optional keepout surrounding the MLA marker and label.
+    - fine horizontal and vertical lithography calipers;
+    - coarse horizontal and vertical lithography calipers;
+    - one fine box-in-box target;
+    - one coarse box-in-box target;
+    - an optional text label;
+    - one keepout rectangle around the full alignment assembly;
+    - one separate keepout rectangle around the label.
 
     Parameters
     ----------
     layer1:
-        First-exposure layer containing the physical MLA150 marker.
+        Layer containing the alignment marker from the first exposure.
     layer2:
-        Overlay-exposure layer.
+        Layer containing the overlay geometry from the second exposure.
     label:
         Optional identification string.
     field_size:
-        Overall dimensions of the central MLA150 marker.
+        Overall size of the central MLA150 cross. A scalar creates a square;
+        a tuple specifies ``(size_x, size_y)``.
     field_center:
-        Centre of the MLA150 marker and nominal alignment field.
+        Centre position of the MLA150 cross.
     alignment_marker:
-        MLA150 marker factory accepting ``size``, ``marker_layer`` and
-        ``boundary_layer``.
+        Factory for the central MLA150 marker. It must accept ``size``,
+        ``marker_layer`` and ``boundary_layer``.
     caliper_factory:
-        Two-layer lithography-caliper factory.
+        Factory for a two-layer lithography caliper.
     fine_offset_per_notch:
-        Fine vernier increment.
+        Vernier increment of the fine calipers.
     coarse_offset_per_notch:
-        Coarse vernier increment.
+        Vernier increment of the coarse calipers.
     notch_size:
         Size of individual caliper notches.
     notch_spacing:
-        Physical spacing between adjacent notches.
+        Physical spacing between neighbouring notches.
     num_notches:
         Number of notches in each caliper.
     row_spacing:
         Separation between the two caliper rows.
     caliper_gap:
-        Clearance between the central field and the caliper bounding boxes.
+        Clearance between the MLA field boundary and each caliper.
     box_target:
-        Box-in-box factory accepting ``layer1`` and ``layer2``.
+        Factory for the two-layer box-in-box target.
     fine_box_settings:
-        Settings for the fine box-in-box target.
+        Optional settings overriding the default fine target geometry.
     coarse_box_settings:
-        Settings for the coarse box-in-box target.
+        Optional settings overriding the default coarse target geometry.
     box_corner_offset:
-        Outward displacement of the box targets from the field corners.
+        Outward displacement of the box targets from their nominal field
+        corners.
     text_factory:
         Text factory accepting ``text`` and ``layer``.
     label_position:
-        Explicit label centre. When ``None``, the label is placed below
-        the central marker.
+        Explicit label centre. When ``None``, the label is placed below the
+        main keepout rectangle.
     label_layer:
-        Label layer. Defaults to ``layer1``.
+        Layer used for the label. Defaults to ``layer1``.
     label_gap:
-        Gap between the field bottom and an automatically positioned label.
+        Gap between the bottom edge of the main keepout and the label geometry.
     keepout_layer:
-        Optional non-fabricated keepout layer.
+        Optional non-fabricated layer used to block routing, tiling and other
+        automated placement operations.
     keepout_margin:
-        Expansion around the combined MLA-marker and label bounding box.
+        Margin around the bounding box of the complete alignment assembly.
+    label_keepout_margin:
+        Margin around the separate label keepout rectangle.
+
+    Returns
+    -------
+    gf.Component
+        Complete two-layer MLA150 overlay marker assembly.
     """
     component = gf.Component()
 
-    size_x, size_y = _parse_xy(field_size, name="field_size")
+    # ------------------------------------------------------------------
+    # Parse scalar or XY parameters
+    # ------------------------------------------------------------------
+
+    size_x, size_y = _parse_xy(
+        field_size,
+        name="field_size",
+    )
+
     caliper_gap_x, caliper_gap_y = _parse_xy(
         caliper_gap,
         name="caliper_gap",
     )
+
     box_offset_x, box_offset_y = _parse_xy(
         box_corner_offset,
         name="box_corner_offset",
     )
+
     keepout_margin_x, keepout_margin_y = _parse_xy(
         keepout_margin,
         name="keepout_margin",
     )
 
+    label_margin_x, label_margin_y = _parse_xy(
+        label_keepout_margin,
+        name="label_keepout_margin",
+    )
+
     center_x, center_y = field_center
+
+    # ------------------------------------------------------------------
+    # Validation
+    # ------------------------------------------------------------------
 
     if size_x <= 0 or size_y <= 0:
         raise ValueError(
-            f"field_size must be positive, received {(size_x, size_y)!r}."
+            "field_size must be positive. "
+            f"Received {(size_x, size_y)!r}."
         )
 
     if fine_offset_per_notch <= 0:
-        raise ValueError("fine_offset_per_notch must be positive.")
+        raise ValueError(
+            "fine_offset_per_notch must be positive. "
+            f"Received {fine_offset_per_notch!r}."
+        )
 
     if coarse_offset_per_notch <= 0:
-        raise ValueError("coarse_offset_per_notch must be positive.")
+        raise ValueError(
+            "coarse_offset_per_notch must be positive. "
+            f"Received {coarse_offset_per_notch!r}."
+        )
 
     if fine_offset_per_notch >= coarse_offset_per_notch:
         raise ValueError(
             "fine_offset_per_notch must be smaller than "
-            "coarse_offset_per_notch."
+            "coarse_offset_per_notch. "
+            f"Received fine={fine_offset_per_notch}, "
+            f"coarse={coarse_offset_per_notch}."
+        )
+
+    if notch_size[0] <= 0 or notch_size[1] <= 0:
+        raise ValueError(
+            f"notch_size must be positive, received {notch_size!r}."
+        )
+
+    if notch_spacing <= 0:
+        raise ValueError(
+            f"notch_spacing must be positive, received {notch_spacing!r}."
+        )
+
+    if num_notches < 1:
+        raise ValueError(
+            f"num_notches must be positive, received {num_notches!r}."
+        )
+
+    if row_spacing < 0:
+        raise ValueError(
+            f"row_spacing cannot be negative, received {row_spacing!r}."
         )
 
     if caliper_gap_x < 0 or caliper_gap_y < 0:
-        raise ValueError("caliper_gap cannot be negative.")
+        raise ValueError(
+            "caliper_gap cannot be negative. "
+            f"Received {(caliper_gap_x, caliper_gap_y)!r}."
+        )
 
     if box_offset_x < 0 or box_offset_y < 0:
-        raise ValueError("box_corner_offset cannot be negative.")
+        raise ValueError(
+            "box_corner_offset cannot be negative. "
+            f"Received {(box_offset_x, box_offset_y)!r}."
+        )
+
+    if label_gap < 0:
+        raise ValueError(
+            f"label_gap cannot be negative, received {label_gap!r}."
+        )
 
     if keepout_margin_x < 0 or keepout_margin_y < 0:
-        raise ValueError("keepout_margin cannot be negative.")
+        raise ValueError(
+            "keepout_margin cannot be negative. "
+            f"Received {(keepout_margin_x, keepout_margin_y)!r}."
+        )
 
+    if label_margin_x < 0 or label_margin_y < 0:
+        raise ValueError(
+            "label_keepout_margin cannot be negative. "
+            f"Received {(label_margin_x, label_margin_y)!r}."
+        )
+
+    # Nominal MLA150 field boundaries.
     field_xmin = center_x - size_x / 2
     field_xmax = center_x + size_x / 2
     field_ymin = center_y - size_y / 2
     field_ymax = center_y + size_y / 2
 
-    # References included in the central keepout calculation.
-    protected_references = []
+    # Every reference in this list is included in the main keepout bbox.
+    alignment_references = []
 
     # ------------------------------------------------------------------
-    # Central MLA150 marker
+    # Central MLA150 alignment marker
     # ------------------------------------------------------------------
 
     mla_component = gf.get_component(
@@ -927,7 +1009,8 @@ def mla150_overlay_marker(
 
     mla_reference = component.add_ref(mla_component)
     mla_reference.dcenter = field_center
-    protected_references.append(mla_reference)
+
+    alignment_references.append(mla_reference)
 
     # ------------------------------------------------------------------
     # Fine and coarse two-layer calipers
@@ -956,55 +1039,63 @@ def mla150_overlay_marker(
     )
 
     # Fine horizontal caliper:
-    # above the field and starting at the left field edge.
+    # above the field and aligned with the left field edge.
     fine_horizontal = component.add_ref(fine_caliper)
     fine_horizontal.dxmin = field_xmin
     fine_horizontal.dymin = field_ymax + caliper_gap_y
 
+    alignment_references.append(fine_horizontal)
+
     # Fine vertical caliper:
-    # left of the field and ending at the upper field edge.
+    # left of the field and aligned with the upper field edge.
     fine_vertical = component.add_ref(fine_caliper)
     fine_vertical.drotate(90)
     fine_vertical.dxmax = field_xmin - caliper_gap_x
     fine_vertical.dymax = field_ymax
 
+    alignment_references.append(fine_vertical)
+
     # Coarse horizontal caliper:
-    # below the field and ending at the right field edge.
+    # below the field and aligned with the right field edge.
     coarse_horizontal = component.add_ref(coarse_caliper)
     coarse_horizontal.drotate(180)
     coarse_horizontal.dxmax = field_xmax
     coarse_horizontal.dymax = field_ymin - caliper_gap_y
 
+    alignment_references.append(coarse_horizontal)
+
     # Coarse vertical caliper:
-    # right of the field and starting at the lower field edge.
+    # right of the field and aligned with the lower field edge.
     coarse_vertical = component.add_ref(coarse_caliper)
     coarse_vertical.drotate(270)
     coarse_vertical.dxmin = field_xmax + caliper_gap_x
     coarse_vertical.dymin = field_ymin
 
+    alignment_references.append(coarse_vertical)
+
     # ------------------------------------------------------------------
-    # Box-in-box targets
+    # Fine and coarse box-in-box targets
     # ------------------------------------------------------------------
 
     fine_settings: dict[str, Any] = {
-        "outer_size": 40.0,
-        "inner_size": 16.0,
+        "outer_size": 20.0,
+        "inner_size": 10.0,
         "outer_width": 2.0,
         "inner_width": 2.0,
     }
 
     coarse_settings: dict[str, Any] = {
-        "outer_size": 100.0,
-        "inner_size": 40.0,
+        "outer_size": 50.0,
+        "inner_size": 20.0,
         "outer_width": 4.0,
         "inner_width": 4.0,
     }
 
     if fine_box_settings is not None:
-        fine_settings.update(fine_box_settings)
+        fine_settings.update(dict(fine_box_settings))
 
     if coarse_box_settings is not None:
-        coarse_settings.update(coarse_box_settings)
+        coarse_settings.update(dict(coarse_box_settings))
 
     for settings_name, settings in (
         ("fine_box_settings", fine_settings),
@@ -1014,8 +1105,8 @@ def mla150_overlay_marker(
 
         if forbidden_keys:
             raise ValueError(
-                f"Do not provide layer1 or layer2 in {settings_name}; "
-                "they are assigned by lithography_overlay_marker."
+                f"Do not provide layer1 or layer2 in {settings_name}. "
+                "These layers are assigned by mla150_overlay_marker."
             )
 
     fine_box = gf.get_component(
@@ -1039,6 +1130,8 @@ def mla150_overlay_marker(
         field_ymax + box_offset_y,
     )
 
+    alignment_references.append(fine_box_reference)
+
     # Coarse target centred on the lower-left field corner.
     coarse_box_reference = component.add_ref(coarse_box)
     coarse_box_reference.dcenter = (
@@ -1046,13 +1139,45 @@ def mla150_overlay_marker(
         field_ymin - box_offset_y,
     )
 
+    alignment_references.append(coarse_box_reference)
+
+    # ------------------------------------------------------------------
+    # Main alignment-assembly bounding box
+    # ------------------------------------------------------------------
+
+    alignment_xmin = min(
+        reference.dxmin
+        for reference in alignment_references
+    )
+    alignment_xmax = max(
+        reference.dxmax
+        for reference in alignment_references
+    )
+    alignment_ymin = min(
+        reference.dymin
+        for reference in alignment_references
+    )
+    alignment_ymax = max(
+        reference.dymax
+        for reference in alignment_references
+    )
+
+    keepout_xmin = alignment_xmin - keepout_margin_x
+    keepout_xmax = alignment_xmax + keepout_margin_x
+    keepout_ymin = alignment_ymin - keepout_margin_y
+    keepout_ymax = alignment_ymax + keepout_margin_y
+
     # ------------------------------------------------------------------
     # Optional label
     # ------------------------------------------------------------------
 
+    label_reference = None
+
     if label is not None:
         resolved_label_layer = (
-            layer1 if label_layer is None else label_layer
+            layer1
+            if label_layer is None
+            else label_layer
         )
 
         label_component = gf.get_component(
@@ -1065,40 +1190,26 @@ def mla150_overlay_marker(
 
         if label_position is None:
             label_height = (
-                label_reference.dymax - label_reference.dymin
+                label_reference.dymax
+                - label_reference.dymin
             )
 
+            # Centre the label below the complete alignment keepout.
             label_reference.dcenter = (
-                center_x,
-                field_ymin - label_gap - label_height / 2,
+                (keepout_xmin + keepout_xmax) / 2,
+                keepout_ymin - label_gap - label_height / 2,
             )
+
         else:
             label_reference.dcenter = label_position
 
-        protected_references.append(label_reference)
-
     # ------------------------------------------------------------------
-    # Keepout around the central marker and optional label
+    # Main and label keepout regions
     # ------------------------------------------------------------------
 
     if keepout_layer is not None:
-        keepout_xmin = (
-            min(reference.dxmin for reference in protected_references)
-            - keepout_margin_x
-        )
-        keepout_xmax = (
-            max(reference.dxmax for reference in protected_references)
-            + keepout_margin_x
-        )
-        keepout_ymin = (
-            min(reference.dymin for reference in protected_references)
-            - keepout_margin_y
-        )
-        keepout_ymax = (
-            max(reference.dymax for reference in protected_references)
-            + keepout_margin_y
-        )
-
+        # One rectangular keepout around all alignment structures:
+        # MLA marker, four calipers and two box targets.
         component.add_polygon(
             [
                 (keepout_xmin, keepout_ymin),
@@ -1109,13 +1220,72 @@ def mla150_overlay_marker(
             layer=keepout_layer,
         )
 
-    component.info["marker_type"] = "lithography_overlay"
+        # Separate tight keepout around the optional text label.
+        if label_reference is not None:
+            label_keepout_xmin = (
+                label_reference.dxmin - label_margin_x
+            )
+            label_keepout_xmax = (
+                label_reference.dxmax + label_margin_x
+            )
+            label_keepout_ymin = (
+                label_reference.dymin - label_margin_y
+            )
+            label_keepout_ymax = (
+                label_reference.dymax + label_margin_y
+            )
+
+            component.add_polygon(
+                [
+                    (
+                        label_keepout_xmin,
+                        label_keepout_ymin,
+                    ),
+                    (
+                        label_keepout_xmax,
+                        label_keepout_ymin,
+                    ),
+                    (
+                        label_keepout_xmax,
+                        label_keepout_ymax,
+                    ),
+                    (
+                        label_keepout_xmin,
+                        label_keepout_ymax,
+                    ),
+                ],
+                layer=keepout_layer,
+            )
+
+    # ------------------------------------------------------------------
+    # Metadata
+    # ------------------------------------------------------------------
+
+    component.info["marker_type"] = "MLA150_overlay"
     component.info["layer1"] = str(layer1)
     component.info["layer2"] = str(layer2)
+
+    component.info["field_center_x"] = center_x
+    component.info["field_center_y"] = center_y
     component.info["field_size_x"] = size_x
     component.info["field_size_y"] = size_y
-    component.info["fine_offset_per_notch"] = fine_offset_per_notch
-    component.info["coarse_offset_per_notch"] = coarse_offset_per_notch
+
+    component.info["fine_offset_per_notch"] = (
+        fine_offset_per_notch
+    )
+    component.info["coarse_offset_per_notch"] = (
+        coarse_offset_per_notch
+    )
+
+    component.info["alignment_bbox_xmin"] = alignment_xmin
+    component.info["alignment_bbox_xmax"] = alignment_xmax
+    component.info["alignment_bbox_ymin"] = alignment_ymin
+    component.info["alignment_bbox_ymax"] = alignment_ymax
+
+    component.info["keepout_bbox_xmin"] = keepout_xmin
+    component.info["keepout_bbox_xmax"] = keepout_xmax
+    component.info["keepout_bbox_ymin"] = keepout_ymin
+    component.info["keepout_bbox_ymax"] = keepout_ymax
 
     return component
 ekst_ebl_marker_arr = gf.partial(
@@ -1149,7 +1319,7 @@ ekst_mla150_alignment_marker = gf.partial(
     boundary_margin=20,
 )
 
-ekst_lithography_overlay_marker = gf.partial(
+ekst_mla150_overlay_marker = gf.partial(
     mla150_overlay_marker,
     field_size=300,
     alignment_marker=mla150_alignment_marker,
@@ -1158,7 +1328,7 @@ ekst_lithography_overlay_marker = gf.partial(
     notch_size=(1.0, 5.0),
     notch_spacing=2.0,
     num_notches=21,
-    caliper_gap=15,
+    caliper_gap=5,
     box_corner_offset=0,
     text_factory=gf.partial(
         gf.components.text,
@@ -1167,4 +1337,5 @@ ekst_lithography_overlay_marker = gf.partial(
     ),
     keepout_layer="KEEPOUT_MARKERS",
     keepout_margin=10,
+    label_keepout_margin=(10, 5),
 )
