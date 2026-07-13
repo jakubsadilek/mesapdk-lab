@@ -1,15 +1,18 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Sequence, Mapping
+from typing import Any
 
 import gdsfactory as gf
-from gdsfactory.typings import LayerSpec
+from gdsfactory.typings import LayerSpec, ComponentSpec
 
 __all__ = [
     "ebpg_marker_array",
     "ebpg_pam_marker_array",
+    "mla150_alignment_marker",
     "ekst_ebl_marker_arr",
     "ekst_ebl_pam_marker_arr",
+    "ekst_mla150_alignment_marker",
 ]
 
 
@@ -29,7 +32,285 @@ def _parse_xy(
 
     scalar = float(value)
     return scalar, scalar
+def _cross_polygon_points(
+    outer_width: float,
+    line_width: float,
+) -> list[tuple[float, float]]:
+    """Returns one polygon describing a centred narrow cross."""
+    half_outer = outer_width / 2
+    half_line = line_width / 2
 
+    return [
+        (-half_line, -half_outer),
+        (half_line, -half_outer),
+        (half_line, -half_line),
+        (half_outer, -half_line),
+        (half_outer, half_line),
+        (half_line, half_line),
+        (half_line, half_outer),
+        (-half_line, half_outer),
+        (-half_line, half_line),
+        (-half_outer, half_line),
+        (-half_outer, -half_line),
+        (-half_line, -half_line),
+    ]
+def _pam_axis_positions(
+    count: int,
+    pitch: float,
+    pitch_increment: float,
+) -> tuple[float, ...]:
+    """Returns centred PAM marker positions along one axis.
+
+    The first interval on either side of the centre equals ``pitch``.
+    Each following interval increases by ``pitch_increment``.
+
+    Example
+    -------
+    For ``count=7``, ``pitch=75`` and ``pitch_increment=1``:
+
+    positions:
+        (-228, -151, -75, 0, 75, 151, 228)
+
+    intervals:
+        (77, 76, 75, 75, 76, 77)
+    """
+    if not isinstance(count, int):
+        raise TypeError(
+            f"count must be an integer, received {count!r}."
+        )
+
+    if count < 1:
+        raise ValueError(
+            f"count must be positive, received {count!r}."
+        )
+
+    if count % 2 == 0:
+        raise ValueError(
+            f"PAM marker count must be odd, received {count!r}."
+        )
+
+    if pitch <= 0:
+        raise ValueError(
+            f"pitch must be positive, received {pitch!r}."
+        )
+
+    if pitch_increment < 0:
+        raise ValueError(
+            "pitch_increment cannot be negative. "
+            f"Received {pitch_increment!r}."
+        )
+
+    half_count = count // 2
+
+    positive_positions: list[float] = []
+    position = 0.0
+
+    for interval_index in range(half_count):
+        interval = pitch + interval_index * pitch_increment
+        position += interval
+        positive_positions.append(position)
+
+    return (
+        *(-position for position in reversed(positive_positions)),
+        0.0,
+        *positive_positions,
+    )
+def _add_rectangular_frame(
+    component: gf.Component,
+    size: tuple[float, float],
+    width: float,
+    layer: LayerSpec,
+    center: tuple[float, float] = (0.0, 0.0),
+) -> None:
+    """Adds a rectangular frame as four non-overlapping polygons."""
+    size_x, size_y = size
+    center_x, center_y = center
+
+    if size_x <= 0 or size_y <= 0:
+        raise ValueError(
+            f"Frame size must be positive, received {size!r}."
+        )
+
+    if width <= 0:
+        raise ValueError(
+            f"Frame width must be positive, received {width!r}."
+        )
+
+    if 2 * width >= min(size_x, size_y):
+        raise ValueError(
+            "Frame width must be smaller than half of both frame dimensions. "
+            f"Received size={size!r}, width={width!r}."
+        )
+
+    xmin = center_x - size_x / 2
+    xmax = center_x + size_x / 2
+    ymin = center_y - size_y / 2
+    ymax = center_y + size_y / 2
+
+    # Bottom bar.
+    component.add_polygon(
+        [
+            (xmin, ymin),
+            (xmax, ymin),
+            (xmax, ymin + width),
+            (xmin, ymin + width),
+        ],
+        layer=layer,
+    )
+
+    # Top bar.
+    component.add_polygon(
+        [
+            (xmin, ymax - width),
+            (xmax, ymax - width),
+            (xmax, ymax),
+            (xmin, ymax),
+        ],
+        layer=layer,
+    )
+
+    # Left bar, excluding the top and bottom regions.
+    component.add_polygon(
+        [
+            (xmin, ymin + width),
+            (xmin + width, ymin + width),
+            (xmin + width, ymax - width),
+            (xmin, ymax - width),
+        ],
+        layer=layer,
+    )
+
+    # Right bar, excluding the top and bottom regions.
+    component.add_polygon(
+        [
+            (xmax - width, ymin + width),
+            (xmax, ymin + width),
+            (xmax, ymax - width),
+            (xmax - width, ymax - width),
+        ],
+        layer=layer,
+    )
+
+
+@gf.cell
+def box_in_box(
+    layer1: LayerSpec,
+    layer2: LayerSpec,
+    outer_size: float | tuple[float, float] = 100.0,
+    inner_size: float | tuple[float, float] = 40.0,
+    outer_width: float = 4.0,
+    inner_width: float = 4.0,
+    inner_offset: tuple[float, float] = (0.0, 0.0),
+) -> gf.Component:
+    """Creates a two-layer box-in-box overlay target.
+
+    The outer frame belongs to the first exposure and the inner frame
+    belongs to the overlay exposure.
+
+    Parameters
+    ----------
+    layer1:
+        Layer containing the first-exposure outer frame.
+    layer2:
+        Layer containing the second-exposure inner frame.
+    outer_size:
+        Outer-frame dimensions.
+    inner_size:
+        Inner-frame dimensions.
+    outer_width:
+        Width of the outer frame.
+    inner_width:
+        Width of the inner frame.
+    inner_offset:
+        Intentional displacement of the inner frame, useful for verification
+        structures.
+    """
+    component = gf.Component()
+
+    outer_size_x, outer_size_y = _parse_xy(
+        outer_size,
+        name="outer_size",
+    )
+    inner_size_x, inner_size_y = _parse_xy(
+        inner_size,
+        name="inner_size",
+    )
+
+    offset_x, offset_y = inner_offset
+
+    if outer_size_x <= 0 or outer_size_y <= 0:
+        raise ValueError(
+            "outer_size must be positive. "
+            f"Received {(outer_size_x, outer_size_y)!r}."
+        )
+
+    if inner_size_x <= 0 or inner_size_y <= 0:
+        raise ValueError(
+            "inner_size must be positive. "
+            f"Received {(inner_size_x, inner_size_y)!r}."
+        )
+
+    if outer_width <= 0 or inner_width <= 0:
+        raise ValueError(
+            "Frame widths must be positive. "
+            f"Received outer_width={outer_width}, "
+            f"inner_width={inner_width}."
+        )
+
+    if 2 * outer_width >= min(outer_size_x, outer_size_y):
+        raise ValueError(
+            "outer_width is too large for outer_size."
+        )
+
+    if 2 * inner_width >= min(inner_size_x, inner_size_y):
+        raise ValueError(
+            "inner_width is too large for inner_size."
+        )
+
+    outer_opening_half_x = outer_size_x / 2 - outer_width
+    outer_opening_half_y = outer_size_y / 2 - outer_width
+
+    inner_extent_x = abs(offset_x) + inner_size_x / 2
+    inner_extent_y = abs(offset_y) + inner_size_y / 2
+
+    if inner_extent_x >= outer_opening_half_x:
+        raise ValueError(
+            "The inner frame does not fit inside the outer-frame opening "
+            "in X."
+        )
+
+    if inner_extent_y >= outer_opening_half_y:
+        raise ValueError(
+            "The inner frame does not fit inside the outer-frame opening "
+            "in Y."
+        )
+
+    _add_rectangular_frame(
+        component=component,
+        size=(outer_size_x, outer_size_y),
+        width=outer_width,
+        layer=layer1,
+    )
+
+    _add_rectangular_frame(
+        component=component,
+        size=(inner_size_x, inner_size_y),
+        width=inner_width,
+        layer=layer2,
+        center=inner_offset,
+    )
+
+    component.info["marker_type"] = "box_in_box"
+    component.info["outer_size_x"] = outer_size_x
+    component.info["outer_size_y"] = outer_size_y
+    component.info["inner_size_x"] = inner_size_x
+    component.info["inner_size_y"] = inner_size_y
+    component.info["outer_width"] = outer_width
+    component.info["inner_width"] = inner_width
+    component.info["inner_offset_x"] = offset_x
+    component.info["inner_offset_y"] = offset_y
+
+    return component
 
 @gf.cell
 def ebpg_marker_array(
@@ -162,70 +443,6 @@ def ebpg_marker_array(
     component.info["boundary_margin_y"] = margin_y
 
     return component
-
-
-def _pam_axis_positions(
-    count: int,
-    pitch: float,
-    pitch_increment: float,
-) -> tuple[float, ...]:
-    """Returns centred PAM marker positions along one axis.
-
-    The first interval on either side of the centre equals ``pitch``.
-    Each following interval increases by ``pitch_increment``.
-
-    Example
-    -------
-    For ``count=7``, ``pitch=75`` and ``pitch_increment=1``:
-
-    positions:
-        (-228, -151, -75, 0, 75, 151, 228)
-
-    intervals:
-        (77, 76, 75, 75, 76, 77)
-    """
-    if not isinstance(count, int):
-        raise TypeError(
-            f"count must be an integer, received {count!r}."
-        )
-
-    if count < 1:
-        raise ValueError(
-            f"count must be positive, received {count!r}."
-        )
-
-    if count % 2 == 0:
-        raise ValueError(
-            f"PAM marker count must be odd, received {count!r}."
-        )
-
-    if pitch <= 0:
-        raise ValueError(
-            f"pitch must be positive, received {pitch!r}."
-        )
-
-    if pitch_increment < 0:
-        raise ValueError(
-            "pitch_increment cannot be negative. "
-            f"Received {pitch_increment!r}."
-        )
-
-    half_count = count // 2
-
-    positive_positions: list[float] = []
-    position = 0.0
-
-    for interval_index in range(half_count):
-        interval = pitch + interval_index * pitch_increment
-        position += interval
-        positive_positions.append(position)
-
-    return (
-        *(-position for position in reversed(positive_positions)),
-        0.0,
-        *positive_positions,
-    )
-
 
 @gf.cell
 def ebpg_pam_marker_array(
@@ -397,6 +614,161 @@ def ebpg_pam_marker_array(
 
     return component
 
+@gf.cell
+def mla150_alignment_marker(
+    size: float | tuple[float, float] = 300.0,
+    arm_width: float = 20.0,
+    center_line_width: float = 2.0,
+    marker_layer: LayerSpec = "MARKER",
+    boundary_layer: LayerSpec | None = None,
+    boundary_margin: float | tuple[float, float] = 20.0,
+) -> gf.Component:
+    """Creates a centred MLA150 alignment marker.
+
+    The marker consists of four wide outer arms and one single-polygon
+    narrow cross in the central intersection.
+
+    Parameters
+    ----------
+    size:
+        Overall marker size. A scalar creates a square marker; a tuple
+        specifies ``(size_x, size_y)``.
+    arm_width:
+        Width of the four main arms.
+    center_line_width:
+        Width of the narrow central cross.
+    marker_layer:
+        Layer on which the marker is drawn.
+    boundary_layer:
+        Optional filled keepout layer.
+    boundary_margin:
+        Margin around the overall marker extent.
+    """
+    component = gf.Component()
+
+    size_x, size_y = _parse_xy(size, name="size")
+    margin_x, margin_y = _parse_xy(
+        boundary_margin,
+        name="boundary_margin",
+    )
+
+    if size_x <= 0 or size_y <= 0:
+        raise ValueError(
+            f"size must be positive, received {(size_x, size_y)!r}."
+        )
+
+    if arm_width <= 0:
+        raise ValueError(
+            f"arm_width must be positive, received {arm_width!r}."
+        )
+
+    if arm_width >= min(size_x, size_y):
+        raise ValueError(
+            "arm_width must be smaller than both marker dimensions. "
+            f"Received arm_width={arm_width}, size={(size_x, size_y)}."
+        )
+
+    if center_line_width <= 0:
+        raise ValueError(
+            "center_line_width must be positive, "
+            f"received {center_line_width!r}."
+        )
+
+    if center_line_width >= arm_width:
+        raise ValueError(
+            "center_line_width must be smaller than arm_width. "
+            f"Received center_line_width={center_line_width}, "
+            f"arm_width={arm_width}."
+        )
+
+    if margin_x < 0 or margin_y < 0:
+        raise ValueError(
+            "boundary_margin cannot be negative. "
+            f"Received {(margin_x, margin_y)!r}."
+        )
+
+    half_size_x = size_x / 2
+    half_size_y = size_y / 2
+    half_arm = arm_width / 2
+
+    # Four wide arms. Each stops at the edge of the central
+    # arm_width × arm_width intersection region.
+    left_arm = component.add_polygon(
+        [
+            (-half_size_x, -half_arm),
+            (-half_arm, -half_arm),
+            (-half_arm, half_arm),
+            (-half_size_x, half_arm),
+        ],
+        layer=marker_layer,
+    )
+
+    right_arm = component.add_polygon(
+        [
+            (half_arm, -half_arm),
+            (half_size_x, -half_arm),
+            (half_size_x, half_arm),
+            (half_arm, half_arm),
+        ],
+        layer=marker_layer,
+    )
+
+    bottom_arm = component.add_polygon(
+        [
+            (-half_arm, -half_size_y),
+            (half_arm, -half_size_y),
+            (half_arm, -half_arm),
+            (-half_arm, -half_arm),
+        ],
+        layer=marker_layer,
+    )
+
+    top_arm = component.add_polygon(
+        [
+            (-half_arm, half_arm),
+            (half_arm, half_arm),
+            (half_arm, half_size_y),
+            (-half_arm, half_size_y),
+        ],
+        layer=marker_layer,
+    )
+
+    # One concave polygon for the entire narrow centre cross.
+    component.add_polygon(
+        _cross_polygon_points(
+            outer_width=arm_width,
+            line_width=center_line_width,
+        ),
+        layer=marker_layer,
+    )
+
+    if boundary_layer is not None:
+        half_boundary_x = half_size_x + margin_x
+        half_boundary_y = half_size_y + margin_y
+
+        component.add_polygon(
+            [
+                (-half_boundary_x, -half_boundary_y),
+                (half_boundary_x, -half_boundary_y),
+                (half_boundary_x, half_boundary_y),
+                (-half_boundary_x, half_boundary_y),
+            ],
+            layer=boundary_layer,
+        )
+
+    opening_size = (arm_width - center_line_width) / 2
+
+    component.info["marker_type"] = "MLA150"
+    component.info["size_x"] = size_x
+    component.info["size_y"] = size_y
+    component.info["arm_width"] = arm_width
+    component.info["center_line_width"] = center_line_width
+    component.info["center_opening_size"] = opening_size
+    component.info["boundary_margin_x"] = margin_x
+    component.info["boundary_margin_y"] = margin_y
+
+    return component
+
 ekst_ebl_marker_arr = gf.partial(
     ebpg_marker_array,
     marker_side=20,
@@ -414,6 +786,16 @@ ekst_ebl_pam_marker_arr = gf.partial(
     pitch=(75, 75),
     pitch_increment=(1, 1),
     marker_layer="DEEP_ETCH",
+    boundary_layer="KEEPOUT_MARKERS",
+    boundary_margin=20,
+)
+
+ekst_mla150_alignment_marker = gf.partial(
+    mla150_alignment_marker,
+    size=300,
+    arm_width=20,
+    center_line_width=2,
+    marker_layer="MH",
     boundary_layer="KEEPOUT_MARKERS",
     boundary_margin=20,
 )

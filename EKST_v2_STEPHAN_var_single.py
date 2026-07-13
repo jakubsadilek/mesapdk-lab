@@ -1007,7 +1007,7 @@ if __name__ == "__main__":
         count = 12,
         initial_loc=(-7500, -3050),# was -2100, -3050
         step=(1250, 0),
-        alternate=True,
+        alternate=False,
     )
     print(heater_locs)
 
