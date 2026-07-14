@@ -1060,6 +1060,7 @@ _stephan_sig_spec = SignalRoutingSpec(
 
 _stephan_master_die = gf.partial(
     ekn_master_die_ds,
+    layer_ruler = "M1",
     pad=gf.c.pad(size=(350, 350), layer="M1"),
 )
 

@@ -238,7 +238,7 @@ ekn_master_die_ds = gf.partial(die_frame_mesa,
     # multiple arrays per side:
     polish_ruler=polish_ruler_spec,
     ruler_pos={"E": (-4450, 4450), "W": (-4450, 4450)},
-    layer_ruler='LABEL_SIN',
+    layer_ruler='M1',
     pad=gf.c.pad(size=(350,350), layer="M1"),
     npads=30,
     pad_pitch=500.0,
