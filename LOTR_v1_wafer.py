@@ -218,6 +218,7 @@ if ADD_TILES:
         (gf.get_layer_info('M1'), 20),
         (gf.get_layer_info('KEEPOUT_DICING'), 20),
         (gf.get_layer_info('LABEL_M1'), 20),
+        (gf.get_layer_info('KEEPOUT_LABELS'), 20),
         
     ],
     x_space=20,

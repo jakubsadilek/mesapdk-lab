@@ -5,6 +5,7 @@ from dies import die_frame_mesa
 from gdsfactory.typings import LayerSpec
 from spirals import spiral_symmetric
 from couplers import edge_coupler_array, two_stage_inverse_taper_with_anchor, two_stage_inverse_taper, butt_ec_with_anchor, pos_taper_ec_with_anchor
+from litho_markers import ekst_ebl_marker_arr
 
 from cross_sections import xs_ekn300_te_IMGREV
 
@@ -243,8 +244,16 @@ ekn_master_die_ds = gf.partial(die_frame_mesa,
     pad_pitch=500.0,
     electrical_sides=("N", "S"),
     xoffset_dc_pads=(-250.0, -400.0),
-    center_pads=True,
- 
+    center_pads=True,    
+    
+    ebl_marker=ekst_ebl_marker_arr,
+    ebl_marker_positions=(
+        (-9650.0, -4650.0),
+        (-9650.0,  4650.0),
+        ( 9650.0, -4650.0),
+        ( 9650.0,  4650.0),
+    ),
+
     fiber_arrays_by_side={
         "W": [fa_w1],
         "E": [fa_e2],
@@ -273,6 +282,14 @@ ekn_master_die_ss = gf.partial(die_frame_mesa,
     xoffset_dc_pads=(-250.0, -400.0),
     center_pads=True,
  
+    ebl_marker=ekst_ebl_marker_arr,
+    ebl_marker_positions=(
+        (-9650.0, -4650.0),
+        (-9650.0,  4650.0),
+        ( 9650.0, -4650.0),
+        ( 9650.0,  4650.0),
+    ),
+
     fiber_arrays_by_side={
         "W": [fa_w1],
 

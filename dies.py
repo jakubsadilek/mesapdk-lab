@@ -443,6 +443,73 @@ def _normalize_fiber_plan(
         plan[side] = list(zip(arrays, offs_list))
     return plan
 
+def _add_ebl_markers(
+    c: Component,
+    ebl_marker: ComponentSpec | None,
+    positions: Sequence[Float2] | None,
+) -> tuple[tuple[float, float], ...]:
+    """Places a configured EBL marker at all requested die-local coordinates.
+
+    The marker component is instantiated once and reused through references.
+
+    Parameters
+    ----------
+    c:
+        Parent die component.
+    ebl_marker:
+        Configured EBL marker component or factory.
+
+        The marker origin is expected to represent its placement centre.
+        This is true for ``ebpg_marker_array`` because that component is
+        geometrically centred at ``(0, 0)``.
+    positions:
+        Sequence of die-local ``(x, y)`` coordinates in µm.
+
+        Coordinates are relative to the clean-die centre.
+
+    Returns
+    -------
+    tuple[tuple[float, float], ...]
+        Normalized marker positions.
+    """
+    if positions is None or len(positions) == 0:
+        return ()
+
+    if ebl_marker is None:
+        raise ValueError(
+            "ebl_marker must be provided when ebl_marker_positions "
+            "contains coordinates."
+        )
+
+    marker_component = gf.get_component(ebl_marker)
+
+    normalized_positions: list[tuple[float, float]] = []
+
+    for index, position in enumerate(positions):
+        try:
+            x, y = position
+        except (TypeError, ValueError) as error:
+            raise ValueError(
+                "Each EBL marker position must contain exactly two "
+                f"coordinates. Invalid position at index {index}: "
+                f"{position!r}."
+            ) from error
+
+        x = float(x)
+        y = float(y)
+
+        marker_reference = c.add_ref(marker_component)
+
+        # Map the marker-local origin onto the requested die coordinate.
+        marker_reference.dmove(
+            origin=(0.0, 0.0),
+            destination=(x, y),
+        )
+
+        normalized_positions.append((x, y))
+
+    return tuple(normalized_positions)
+
 @gf.cell
 def die_frame_mesa(
     die_frame: ComponentSpec = "die_frame",
@@ -463,6 +530,11 @@ def die_frame_mesa(
     polish_ruler: ComponentSpec = "polishRuler",
     ruler_pos=None,
     layer_ruler: LayerSpec = "WG",
+
+    # EBL alignment markers
+    ebl_marker: ComponentSpec | None = None,
+    ebl_marker_positions: Sequence[Float2] | None = None,
+
 ) -> Component:
     """
     Creates a higher-level die assembly composed of:
@@ -546,6 +618,16 @@ def die_frame_mesa(
     # Place the die_frame at the origin
     d = gf.get_component(die_frame)
     die_ref = c.add_ref(d)
+
+    # ------------------------------------------------------------------
+    # EBL alignment marker arrays
+    # ------------------------------------------------------------------
+
+    resolved_ebl_marker_positions = _add_ebl_markers(
+        c=c,
+        ebl_marker=ebl_marker,
+        positions=ebl_marker_positions,
+    )
 
     # Add polish rulers if requested
     _add_polish_rulers(
@@ -637,7 +719,23 @@ def die_frame_mesa(
             })
             fiber_arrays_info.append(entry)
     c.info["fiber_arrays"] = fiber_arrays_info
-    
+
+    # EBL marker metadata
+    ebl_marker_info = {
+        "count": len(resolved_ebl_marker_positions),
+        "positions": [
+            [x, y]
+            for x, y in resolved_ebl_marker_positions
+        ],
+    }
+
+    if ebl_marker is not None:
+        ebl_marker_info["component"] = gf.get_component(
+            ebl_marker
+        ).name
+
+    c.info["ebl_markers"] = ebl_marker_info
+
     return c
 
 
