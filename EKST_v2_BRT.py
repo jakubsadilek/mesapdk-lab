@@ -106,7 +106,7 @@ def ekst_v2_brt_master(
     # -------------------------------------------------------------------------
 
     if label != None:
-        tag = d.add_ref(label_txt(size=100, text=label)).drotate(90).dmove(origin=(0,0), destination=(-9250, 600))
+        tag = d.add_ref(label_txt(size=100, text=label)).drotate(0).dmove(origin=(0,0), destination=(-9250, 1850))
     if chip_id_label != None:
         chip_id_tag = d.add_ref(label_txt(size=30, text=chip_id_label, justify = "center")).dmove(origin=(0,0), destination=(8550, -4350))
 
@@ -138,5 +138,5 @@ if __name__ == "__main__":
         )
 
     #ekst_v2_brt_master(ext_grp_spacing=127).show()
-    ekst_v2_brt_master(ext_grp_spacing=127, bend_rads= (50, 100, 200, 300, 400, 500, 600), ec_array_def=edge_coupler_array_ekn_def_butt, logo=logo, logo_loc=(-5000,5000)).show()
+    ekst_v2_brt_master(ext_grp_spacing=127, widths=(6,8,10,12), bend_rads= (300, 600, 900, 1200, 1500, 1800, 2100), ec_array_def=edge_coupler_array_ekn_def_butt, logo=logo, logo_loc=(-5000,5000)).show()
     #ekst_v2_brt_master(bend_rads=(2000,1000), widths=(2,4,6,8,2,4,6,8,2,4,6,8),ext_grp_spacing=512, label="EKST_v2\nMMWG", ec_array_def=edge_coupler_array_ekn_def_centerskip).show()

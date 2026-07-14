@@ -775,7 +775,7 @@ def route_heater_signals_to_south_pads(
 
     return list(zip(heater_ports, pad_ports, strict=True))
 
-label_txt = gf.partial(gf.components.text_rectangular, layer = "LABEL_SIN")
+label_txt = gf.partial(gf.components.text_rectangular, layer = "M1")
 
 @gf.cell_with_module_name
 def stephan_master_serpentine(
@@ -792,8 +792,8 @@ def stephan_master_serpentine(
         route_turns_waypoints: tuple[Position,] | None = None,
         
         label_txt: gf.typings.ComponentSpec = label_txt,
-        label: str = "STPH_v0\nBRT",
-        chip_id_label: str = "ESTPH_v0 SRP\nW00_I00\nX20.0 Y20.0",
+        label: str = "STPH_v0\n01 S 20um",
+        chip_id_label: str = "STPH_v0 SRP\nW00_I00\nX+3 Y-3",
         logo: gf.typings.ComponentSpec = None,
         logo_loc: gf.typings.Position = None,
 
@@ -944,7 +944,7 @@ def stephan_master_serpentine(
     # -------------------------------------------------------------------------
 
     if label != None:
-        tag = d.add_ref(label_txt(size=100, text=label)).drotate(90).dmove(origin=(0,0), destination=(-9250, 600))
+        tag = d.add_ref(label_txt(size=100, text=label)).drotate(0).dmove(origin=(0,0), destination=(-9250, 1825))
     if chip_id_label != None:
         chip_id_tag = d.add_ref(label_txt(size=30, text=chip_id_label, justify = "center")).dmove(origin=(0,0), destination=(8550, -4350))
 
@@ -959,6 +959,189 @@ def stephan_master_serpentine(
     d.info = md.cell.info
 
     return d
+
+
+
+_stephan_via_m1 = gf.c.via1(
+    size=(5, 5),
+    enclosure=7.5,
+    layer="VIA0",
+    pitch=7.5,
+)
+
+_stephan_via_stack_heater = gf.partial(
+    via_stack_multilayer,
+    size=(50, 50),
+    vias=(None, None, _stephan_via_m1),
+    layers=("M1", "SIN_ETCH", "MH"),
+    layer_to_port_orientations={
+        "M1": [180, 90, 0, -90],
+        "MH": [180, 90, 0, -90],
+    },
+    correct_size=True,
+    layer_offsets=(0, 2, 0),
+)
+
+_stephan_via_stack_collector = gf.partial(
+    via_stack_multilayer,
+    size=(200, 200),
+    vias=(None, None, _stephan_via_m1),
+    layers=("M1", "SIN_ETCH", "MH"),
+    layer_to_port_orientations={
+        "M1": [180, 90, 0, -90],
+        "MH": [180, 90, 0, -90],
+    },
+    correct_size=True,
+    layer_offsets=(0, 2, 0),
+)
+
+_stephan_via_stack_gnd = gf.partial(
+    via_stack_multilayer,
+    vias=(None, None),
+    size=(50, 50),
+    layers=("SIN_ETCH", "MH"),
+    correct_size=True,
+    layer_offsets=(2, 0),
+)
+
+_stephan_heater = gf.partial(
+    straight_heater_offset_wg_90deg,
+    via_stack_offset_west=(0, -75),
+    via_stack_offset_east=(0, -75),
+    heater_wg_gap=1,
+    heater_taper_length=10,
+    heater_lenght=1000,
+    waveguide_lenght=1000,
+    cross_section_waveguide=xs_ekn300_te_IMGREV,
+    cross_section_heater_conn="xs_heater_metal_trench",
+    cross_section_heater="xs_heater_metal",
+    via_stack_east=_stephan_via_stack_gnd,
+    via_stack_west=_stephan_via_stack_heater,
+)
+
+_stephan_gnd_spec = GroundRoutingSpec(
+    offset_abs=280.0,
+    trunk_side="west",
+    cross_section_backbone="xs_heater_metal_trench",
+    cross_section_route=xs_heater_metal_trench,
+    backbone_width=150.0,
+    tap_width=50.0,
+    route_width=50.0,
+    via_stack=_stephan_via_stack_collector,
+    via_stack_x=7250.0,
+    via_stack_port_trunk="mh_e1",
+    via_stack_port_collector="m1_e4",
+    auto_taper=True,
+    collector_cross_section=gf.partial(
+        gf.cross_section.metal_routing,
+        layer="M1",
+    ),
+    collector_width=250,
+    collector_target_port="S29_e1",
+)
+
+_stephan_sig_spec = SignalRoutingSpec(
+    candidate_port_names=(
+        "W_m1_e1",
+        "W_m1_e2",
+        "W_m1_e3",
+        "W_m1_e4",
+    ),
+    start_pad_index=28,
+    pad_port_suffix="e1",
+    cross_section_route=gf.partial(
+        gf.cross_section.metal_routing,
+        layer="M1",
+    ),
+    route_width=50,
+    auto_taper=True,
+    separation=50,
+)
+
+_stephan_master_die = gf.partial(
+    ekn_master_die_ds,
+    pad=gf.c.pad(size=(350, 350), layer="M1"),
+)
+
+def _stephan_heater_locs_20() -> list[HeaterPlacement]:
+    heater_locs = generate_heater_array(
+        count=7,
+        initial_loc=(-2100, -3050),
+        step=(1250, 0),
+        alternate=True,
+    )
+
+    heater_locs += generate_heater_array(
+        count=7,
+        initial_loc=(5500, 200),
+        step=(-1250, 0),
+        alternate=True,
+        mirror_y=False,
+        rotation=180,
+    )
+
+    heater_locs += generate_heater_array(
+        count=6,
+        initial_loc=(-1950, 3450),
+        step=(1250, 0),
+        alternate=True,
+        mirror_y=True,
+    )
+
+    return heater_locs
+
+
+def _stephan_heater_locs_12() -> list[HeaterPlacement]:
+    return generate_heater_array(
+        count=12,
+        initial_loc=(-7500, -3050),
+        step=(1250, 0),
+        alternate=False,
+    )
+
+stephan_serpentine_20h = gf.partial(
+    stephan_master_serpentine,
+
+    master_die=_stephan_master_die,
+
+    # Output remains butt-coupled.
+    # ec_array_def will be selected by the tapeout table.
+    ec_array_defe=edge_coupler_array_stph_but,
+
+    heater=_stephan_heater,
+    heater_loc=_stephan_heater_locs_20(),
+
+    cross_section=xs_ekn300_te_IMGREV,
+    bend_rad=1575,
+    route_turns_waypoints=(
+        (9600, -1425),
+        (-9600, 1825),
+    ),
+
+    gnd_routing=_stephan_gnd_spec,
+    sig_routing=_stephan_sig_spec,
+
+)
+
+stephan_inline_12h = gf.partial(
+    stephan_master_serpentine,
+
+    master_die=_stephan_master_die,
+
+    # Only FAN-IN is selected externally.
+    ec_array_defe=edge_coupler_array_stph_but,
+
+    heater=_stephan_heater,
+    heater_loc=_stephan_heater_locs_12(),
+
+    cross_section=xs_ekn300_te_IMGREV,
+    bend_rad=2000,
+    route_turns_waypoints=None,
+
+    gnd_routing=_stephan_gnd_spec,
+    sig_routing=_stephan_sig_spec,
+
+)
 
 if __name__ == "__main__":
 
@@ -1085,10 +1268,10 @@ if __name__ == "__main__":
         heater_loc=heater_locs,
         route_turns_waypoints=((9600, -1425), (-9600, 1825)),
         logo=logo,
-        label=None,
+        #label=None,
         logo_loc=(8500, -3650),
         bend_rad=1575,
-        chip_id_label=None,
+        #chip_id_label=None,
         gnd_routing =gnd_spec,
         sig_routing= sig_spec
     ).show()
