@@ -1120,6 +1120,7 @@ stephan_serpentine_20h = gf.partial(
 
     gnd_routing=_stephan_gnd_spec,
     sig_routing=_stephan_sig_spec,
+    logo_loc=(8500, -3650),
 
 )
 
@@ -1135,11 +1136,12 @@ stephan_inline_12h = gf.partial(
     heater_loc=_stephan_heater_locs_12(),
 
     cross_section=xs_ekn300_te_IMGREV,
-    bend_rad=2000,
+    bend_rad=1575,
     route_turns_waypoints=None,
 
     gnd_routing=_stephan_gnd_spec,
     sig_routing=_stephan_sig_spec,
+    logo_loc=(8500, -3650),
 
 )
 
