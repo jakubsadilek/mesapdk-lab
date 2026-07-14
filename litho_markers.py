@@ -1301,7 +1301,7 @@ ekst_ebl_marker_arr = gf.partial(
 ekst_ebl_pam_marker_arr = gf.partial(
     ebpg_pam_marker_array,
     marker_side=10,
-    shape=(7, 7),
+    shape=(29, 29),
     pitch=(75, 75),
     pitch_increment=(1, 1),
     marker_layer="DEEP_ETCH",
