@@ -23,8 +23,8 @@ from wafer_component import wafer_from_spec
 
 
 VERBOSE = True
-ADD_TILES = True
-EXPORT_FILES = True
+ADD_TILES = False
+EXPORT_FILES = False
 
 WAFER_ID = "STPH_v0_W01"
 
